@@ -2,19 +2,19 @@
 
 インフルエンザテーマのレトロ風テキスト RPG「インフルクエスト」。MCP（Model Context Protocol）の機能をひと通り体験できるゲームサーバーです。イベント登壇用に作られており、会場参加者がスマホの Claude から remote MCP コネクタとして接続して遊べます。
 
-インフルたいまおうに さらわれた ちょまどひめを、みんなで たすけにいきます。
+インフルだいまおうに さらわれた ちょまどひめを、みんなで たすけにいきます。インフルエンサーではなく、インフルエンザのクエストです。
 
 ## 遊び方
 
 ### スマホから遊ぶ（remote MCP コネクタ）
 
 1. スマホで claude.ai にログインする（無料アカウントで利用できます。無料プランはカスタムコネクタ 1 個まで）
-2. 設定の「コネクタ」からカスタムコネクタを追加し、URL に `https://influenza-quest.nukoevi.app/mcp` を入力する
+2. 設定の「コネクタ」からカスタムコネクタを追加し、URL に `https://influ-quest.nukoevi.app/mcp` を入力する
 3. 新しいチャットで「インフルクエストをはじめて」と話しかける
 
 ### ブラウザ版（Claude アカウント不要）
 
-`https://influenza-quest.nukoevi.app/play` を開くと、Workers 上のエージェントループ（Anthropic API）がゲームマスターを務めるチャット UI で遊べます。運営側が `ANTHROPIC_API_KEY` を設定している場合のみ有効です。
+`https://influ-quest.nukoevi.app/play` を開くと、Workers 上のエージェントループ（Anthropic API）がゲームマスターを務めるチャット UI で遊べます。運営側が `ANTHROPIC_API_KEY` を設定している場合のみ有効です。
 
 ### ローカルで遊ぶ（STDIO）
 
@@ -39,12 +39,12 @@ Elicitation 非対応クライアントは `answer_host` ツールで、tools/li
 
 ## 会場ボード
 
-`https://influenza-quest.nukoevi.app/` が会場用リーダーボードです。ツール呼び出しごとに勇者名・レベル・HP・ゴールド・場所・クリア状況が匿名 UUID 付きで送信され、約 4 秒ごとに更新されます。データは 6 時間の TTL で自動削除されます。
+`https://influ-quest.nukoevi.app/` が会場用リーダーボードです。ツール呼び出しごとに勇者名・レベル・HP・ゴールド・場所・クリア状況が匿名 UUID 付きで送信され、約 4 秒ごとに更新されます。データは 6 時間の TTL で自動削除されます。
 
 STDIO 版から送信する場合は環境変数を設定します。
 
 ```sh
-INFLUENZA_QUEST_DASHBOARD_URL=https://influenza-quest.nukoevi.app
+INFLUENZA_QUEST_DASHBOARD_URL=https://influ-quest.nukoevi.app
 INFLUENZA_QUEST_EVENT_TOKEN=<イベントトークン>
 ```
 

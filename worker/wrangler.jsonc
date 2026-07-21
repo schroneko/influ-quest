@@ -10,7 +10,7 @@
   },
   "routes": [
     {
-      "pattern": "influenza-quest.nukoevi.app",
+      "pattern": "influ-quest.nukoevi.app",
       "custom_domain": true
     }
   ],

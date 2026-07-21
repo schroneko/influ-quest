@@ -818,13 +818,13 @@ const PAGE = String.raw`<!doctype html>
   <header class="masthead">
     <p class="eyebrow">Public Venue Dashboard</p>
     <h1>インフルクエスト 会場ボード</h1>
-    <p class="intro">インフルたいまおうに さらわれた ちょまどひめを、みんなで たすけにいく MCP ゲームの会場ボードだよ。参加者データを約4秒ごとに更新するの。</p>
+    <p class="intro">インフルだいまおうに さらわれた ちょまどひめを、みんなで たすけにいく MCP ゲームの会場ボードだよ。インフルエンサーではなく、インフルエンザのクエストです。参加者データを約4秒ごとに更新するの。</p>
   </header>
   <section class="join">
     <h2>あそびかた</h2>
     <ol>
       <li>スマホで claude.ai にログインする（無料アカウントで大丈夫）</li>
-      <li>設定の「コネクタ」からカスタムコネクタを追加して、URL に <code>https://influenza-quest.nukoevi.app/mcp</code> を入れる</li>
+      <li>設定の「コネクタ」からカスタムコネクタを追加して、URL に <code>https://influ-quest.nukoevi.app/mcp</code> を入れる</li>
       <li>新しいチャットで「インフルクエストをはじめて」と話しかける</li>
     </ol>
     <p>コネクタが使えないときは <a href="/play">ブラウザ版</a> で遊べるよ。いまみんながやったこの登録操作こそが MCP なの。</p>
@@ -921,7 +921,7 @@ const PAGE = String.raw`<!doctype html>
     if (player.cheatCleared) return { label: "チートクリア", cls: "status-cheat" };
     if (player.cleared) return { label: "クリア", cls: "status-clear" };
     if (player.princessCarried) return { label: "ちょまどひめを かついでいる", cls: "status-princess" };
-    if (player.dragonDefeated) return { label: "たいまおうを たおした", cls: "status-boss" };
+    if (player.dragonDefeated) return { label: "だいまおうを たおした", cls: "status-boss" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
   const renderPlayers = (players) => {
