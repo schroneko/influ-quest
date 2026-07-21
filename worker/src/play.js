@@ -483,7 +483,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
     log.scrollTop = log.scrollHeight;
     return div;
   };
-  addMessage("sys", "インフルたいまおうに さらわれた ちょまどひめを たすけだそう。");
+  addMessage("sys", "インフルだいまおうに さらわれた ちょまどひめを たすけだそう。");
   addMessage("gm", "ゲームマスター「ようこそ、ゆうしゃよ。『ぼうけんをはじめて』と はなしかけてくれ。」");
   let busy = false;
   const submit = async (text) => {

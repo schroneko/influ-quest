@@ -7,7 +7,7 @@ export const enemyNames = [
   "ウイルスりゅうし",
   "せきしぶき",
   "へんいかぶ",
-  "インフルたいまおう",
+  "インフルだいまおう",
 ] as const;
 export const weaponAttackByName = {
   ふつうのマスク: 6,
