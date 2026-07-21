@@ -1,4 +1,4 @@
-# influenza-quest
+# influ-quest
 
 インフルエンザテーマのレトロ風テキスト RPG「インフルクエスト」。MCP（Model Context Protocol）の機能をひと通り体験できるゲームサーバーです。イベント登壇用に作られており、会場参加者がスマホの Claude から remote MCP コネクタとして接続して遊べます。
 
@@ -19,7 +19,7 @@
 ### ローカルで遊ぶ（STDIO）
 
 ```sh
-claude mcp add -s user influenza-quest -- npx -y github:schroneko/influenza-quest
+claude mcp add -s user influ-quest -- npx -y github:schroneko/influ-quest
 ```
 
 ソースからビルドする場合は `npm run build` のうえ `node dist/stdio.js` を MCP サーバーとして登録します。セーブデータは `~/.influenza-quest/karte.json` に保存されます。
