@@ -1,0 +1,25 @@
+{
+  "name": "influenza-quest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP demo: influenza-themed retro RPG server",
+  "bin": {
+    "influenza-quest": "dist/stdio.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "pretest": "npm run build",
+    "test": "node --test",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "agents": "^0.17.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
+  }
+}
