@@ -1,0 +1,67 @@
+{
+  "name": "influenza-quest",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "EVENT_ID": "shared-event"
+  },
+  "routes": [
+    {
+      "pattern": "influenza-quest.nukoevi.app",
+      "custom_domain": true
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PLAYERS",
+      "id": "d994bfbb80aa4f13b590c433cb35edf9"
+    },
+    {
+      "binding": "SESSIONS",
+      "id": "1e681ca8ed93495c8de716b9667e3049"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "QuestAgent"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["QuestAgent"]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "PLAYER_RATE_LIMIT",
+      "namespace_id": "2001",
+      "simple": {
+        "limit": 3,
+        "period": 10
+      }
+    },
+    {
+      "name": "EVENT_RATE_LIMIT",
+      "namespace_id": "2002",
+      "simple": {
+        "limit": 4000,
+        "period": 60
+      }
+    },
+    {
+      "name": "CHAT_RATE_LIMIT",
+      "namespace_id": "2003",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ]
+}
