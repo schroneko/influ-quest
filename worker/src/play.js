@@ -158,7 +158,10 @@ export function isShopScene(state, sceneText) {
   return (
     sceneText.includes("ぶきや「いらっしゃい") ||
     sceneText.includes("ぼうぐや「いらっしゃい") ||
-    sceneText.includes("くすりや「いらっしゃい")
+    sceneText.includes("くすりや「いらっしゃい") ||
+    sceneText.includes("ぶきや「まいど") ||
+    sceneText.includes("ぼうぐや「まいど") ||
+    sceneText.includes("くすりや「まいど")
   );
 }
 
@@ -170,8 +173,8 @@ function buildSuggestions(state, sceneText) {
     if (/かいますか|買いますか|かうか？|こうにゅうしますか/.test(sceneText)) {
       return ["はい", "いいえ"];
     }
-    const shopScene = (marker, entries, kind) => {
-      if (!sceneText.includes(marker)) {
+    const shopScene = (markers, entries, kind) => {
+      if (!markers.some((marker) => sceneText.includes(marker))) {
         return null;
       }
       const opts = [];
@@ -188,20 +191,32 @@ function buildSuggestions(state, sceneText) {
       opts.push("みせを でる");
       return opts;
     };
-    const weaponScene = shopScene("ぶきや「いらっしゃい", WEAPON_SHOP, "weapon");
+    const weaponScene = shopScene(
+      ["ぶきや「いらっしゃい", "ぶきや「まいど"],
+      WEAPON_SHOP,
+      "weapon",
+    );
     if (weaponScene) {
       return weaponScene;
     }
-    const armorScene = shopScene("ぼうぐや「いらっしゃい", ARMOR_SHOP, "armor");
+    const armorScene = shopScene(
+      ["ぼうぐや「いらっしゃい", "ぼうぐや「まいど"],
+      ARMOR_SHOP,
+      "armor",
+    );
     if (armorScene) {
       return armorScene;
     }
-    if (sceneText.includes("くすりや「いらっしゃい")) {
-      return [
-        `くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`,
-        `くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`,
-        "みせを でる",
-      ];
+    if (sceneText.includes("くすりや「いらっしゃい") || sceneText.includes("くすりや「まいど")) {
+      const opts = [];
+      if (state.immunityCount < 3) {
+        opts.push(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
+      }
+      if (state.medicineCount < 3) {
+        opts.push(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
+      }
+      opts.push("みせを でる");
+      return opts;
     }
     if (sceneText.includes("ここは まもりのまちだ")) {
       if (state.princessCarried) {
