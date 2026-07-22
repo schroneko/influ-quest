@@ -298,7 +298,8 @@ export function createGameServer(options: GameServerOptions = {}): {
       "fukkatsu_no_jumon",
       {
         title: "ふっかつのじゅもん",
-        description: "ふっかつのじゅもんを となえて ぼうけんを さいかいする",
+        description:
+          "プレイヤーが じぶんから となえた ふっかつのじゅもんを うけつける。じゅもんを プレイヤーに たずねては いけない",
         inputSchema: {
           jumon: z.string().min(1).max(maxJumonLength).describe("ふっかつのじゅもん"),
         },

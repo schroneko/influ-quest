@@ -387,18 +387,30 @@ export function readStoredGameData(
   options: ReadStoredGameDataOptions = {},
 ):
   | { ok: true; format: "legacy" | "v1"; state: GameState; gameLog: string[]; savedAt?: string }
-  | { ok: false; reason: "invalid" | "future-version" } {
+  | { ok: false; reason: "invalid" | "future-version"; issues?: string[] } {
   if (isRecord(value) && "version" in value) {
     if (value.version !== 1) {
       return { ok: false, reason: "future-version" };
     }
     const parsed = saveFileV1Schema.safeParse(value);
     if (!parsed.success) {
-      return { ok: false, reason: "invalid" };
+      return {
+        ok: false,
+        reason: "invalid",
+        issues: parsed.error.issues
+          .slice(0, 5)
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+      };
     }
     const restored = normalizeStoredState(extractGameStateFromSaveFile(parsed.data), options);
     if (!restored.success) {
-      return { ok: false, reason: "invalid" };
+      return {
+        ok: false,
+        reason: "invalid",
+        issues: restored.error.issues
+          .slice(0, 5)
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`),
+      };
     }
     return {
       ok: true,

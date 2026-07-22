@@ -47,7 +47,7 @@ test("gargle spell heals and name spells fizzle", () => {
   assert.match(text(fizzled), /なにも おこらなかった/);
 });
 
-test("clinic jumon restores progress through fukkatsu", async () => {
+test("clinic issues a jumon keepsake but codes cannot restore state", async () => {
   const engine = newEngine();
   await engine.handleNameHero({ name: "てすと" });
   await engine.handleTalk();
@@ -58,10 +58,11 @@ test("clinic jumon restores progress through fukkatsu", async () => {
   assert.equal(parsed.state.heroName, "てすと");
 
   const other = newEngine();
-  const restored = other.handleFukkatsu({ jumon });
-  assert.match(text(restored), /よみがえった/);
-  assert.equal(other.state.heroName, "てすと");
-  assert.equal(other.state.gold, 200);
+  const before = cloneState(other.state);
+  const rejected = other.handleFukkatsu({ jumon });
+  assert.equal(rejected.isError, true);
+  assert.match(text(rejected), /じゅもんが ちがいます/);
+  assert.deepEqual(other.state, before);
 });
 
 test("boss battle leads to princess rescue and true ending", async () => {
@@ -548,26 +549,16 @@ test("persist failures roll back the secret jumon path", () => {
   assert.equal(changed, 1);
 });
 
-test("persist failures roll back regular fukkatsu restores", () => {
-  let changed = 0;
-  const source = newEngine();
-  source.handleNameHero({ name: "てすと" });
-  const jumon = source.currentJumon();
+test("persist failures roll back the basho jumon boost", () => {
   const engine = newEngine({
     persist: () => {
       throw new Error("persist failed");
     },
-    toolsChanged: () => {
-      changed += 1;
-    },
   });
-  engine.state.heroName = "べつのなまえ";
   const before = cloneState(engine.state);
-  const result = engine.handleFukkatsu({ jumon });
+  const result = engine.handleFukkatsu({ jumon: "ふるいけや かわずとびこむ みずのおと ばしや" });
   assert.equal(result.isError, true);
-  assert.match(text(result), /ふっかつに しっぱい/);
   assert.deepEqual(engine.state, before);
-  assert.equal(changed, 1);
 });
 
 test("fan mode unlocks bebitaro telepathy", async () => {

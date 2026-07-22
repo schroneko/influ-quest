@@ -77,7 +77,7 @@ const GAME_TOOL = {
     "weapon_shop: ぶきを見る・item で買う。armor_shop: マスクなどのぼうぐを見る・item で買う。",
     "pharmacy: くすりやを見る・item で買う。かぜぐすり 30G と ワクチン 100G（かんせんを 3 かい ふせぐ）。",
     "medicine: かぜぐすりを飲んでインフルエンザを治す（戦闘中も可）。",
-    "cast_spell: spell でじゅもんを唱える。fukkatsu_no_jumon: jumon で再開。",
+    "cast_spell: spell でじゅもんを唱える。fukkatsu_no_jumon: プレイヤーが自分からふっかつのじゅもんを唱えたときだけ jumon に入れて呼ぶ。じゅもんをプレイヤーに尋ねるのは禁止。",
     "answer_host: ちょまどひめの問いに answer で答える。new_game: 最初からやり直す。",
   ].join("\n"),
   input_schema: {
@@ -112,6 +112,7 @@ const SYSTEM_PROMPT = [
   "・最初のメッセージに名前が書かれていたら、start_adventure のあと すぐ name_hero でその名前をつけ、聞き返さない",
   "・インフルエンザに かかったら、なおすか つっこむかは プレイヤーが きめる",
   "・そうび（ぶき・ぼうぐ）や もちものを きかれたら、かならず status を よんで こたえる。おぼえで こたえない",
+  "・「ふっかつのじゅもんを いってくれ」のように じゅもんを プレイヤーに たずねるのは ぜったいに 禁止。じゅもんは プレイヤーが じぶんから となえる もの",
   "",
   "テンポのルール（最重要）:",
   "・これは プレイヤーが 選ぶ ゲームだ。えらぶのは プレイヤー、すすめるのは GM",
@@ -143,10 +144,22 @@ const SYSTEM_PROMPT = [
 
 function loadSessionState(saved) {
   if (saved && typeof saved === "object") {
+    if (saved.save == null) {
+      return {
+        state: createInitialState(),
+        gameLog: [],
+        restoreFailed: { reason: "missing-save", issues: [] },
+      };
+    }
     const restored = readStoredGameData(saved.save, { preserveBattle: true });
     if (restored.ok) {
       return { state: restored.state, gameLog: restored.gameLog };
     }
+    return {
+      state: createInitialState(),
+      gameLog: [],
+      restoreFailed: { reason: restored.reason, issues: restored.issues ?? [] },
+    };
   }
   return { state: createInitialState(), gameLog: [] };
 }
@@ -471,6 +484,9 @@ export function routeDirectCommand(state, rawMessage) {
   }
   if (msg === "みせをでる") {
     return [{ action: "talk" }];
+  }
+  if (msg === "つづきをあそぶ" || msg === "つづきから") {
+    return [{ action: "start_adventure" }];
   }
   let match = msg.match(/^([^を]+)を(かう|うつ)$/);
   if (match) {
@@ -1076,6 +1092,24 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   }
   const messages = session && Array.isArray(session.messages) ? [...session.messages] : [];
   const loaded = loadSessionState(session);
+  if (loaded.restoreFailed) {
+    console.error(
+      "session restore failed:",
+      JSON.stringify({
+        sessionId: sessionId.slice(0, 8),
+        reason: loaded.restoreFailed.reason,
+        issues: loaded.restoreFailed.issues,
+        heroName: session?.save?.heroName,
+        level: session?.save?.level,
+        location: session?.save?.location,
+        lairDepth: session?.save?.lairDepth,
+        savedAt: session?.save?.savedAt,
+      }),
+    );
+    return serviceUnavailableResponse(
+      "ぼうけんのしょが みだれている。すこし まってから もういちど ためしてくれ。",
+    );
+  }
 
   let latestSnapshot = null;
   const engine = createEngine(loaded, {
@@ -1198,7 +1232,10 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     for (const step of directSteps) {
       let output;
       try {
-        output = await engine.handlePerformAction(step);
+        output =
+          step.action === "start_adventure"
+            ? engine.handleStartAdventure()
+            : await engine.handlePerformAction(step);
       } catch {
         output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
       }

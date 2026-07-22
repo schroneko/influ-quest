@@ -2,7 +2,6 @@ import {
   appendGameText,
   armorDefenseByName,
   createInitialState,
-  decodeJumon,
   encodeJumon,
   infectionChanceByArmor,
   maxHeroNameCodePoints,
@@ -1808,25 +1807,7 @@ ${artHtml}
         return errorText("じゅもんが みだれた。もういちど ためしてくれ。");
       }
     }
-    try {
-      const restored = decodeJumon(jumon);
-      try {
-        const restoredText = persistTransaction(() => {
-          state = restored.state;
-          gameLog.length = 0;
-          gameLog.push(...restored.gameLog);
-          return (
-            "ふっかつのじゅもんが うけいれられた！ ぼうけんのしょが よみがえった！\n\n" +
-            statusText()
-          );
-        });
-        return okText(restoredText);
-      } catch {
-        return errorText("ぼうけんのしょの ふっかつに しっぱいした。");
-      }
-    } catch {
-      return errorText("じゅもんが ちがいます。");
-    }
+    return errorText("じゅもんが ちがいます。");
   }
 
   function handleAnswerHost({ answer }: { answer: string }): ToolResult {

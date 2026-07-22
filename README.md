@@ -80,6 +80,14 @@ wrangler secret put ANTHROPIC_API_KEY --config worker/wrangler.jsonc
 
 `EVENT_TOKEN` は STDIO 版からのボード送信の認証用、`OPENAI_API_KEY` と `ANTHROPIC_API_KEY` はブラウザ版のゲームマスター用です（OpenAI 優先、未設定なら Anthropic）。いずれも未設定でも remote MCP と会場ボードは動作します。書き込み締切は `EVENT_WRITE_UNTIL`（ISO 8601）で設定できます。
 
+## デバッグ（本番ログの確認）
+
+```sh
+wrangler tail influ-quest --config worker/wrangler.jsonc --format pretty
+```
+
+を流しっぱなしにした状態で症状を再現すると、`session restore failed:` のログにセッション ID 先頭 8 桁・失敗理由・スキーマ違反の内訳・直前のセーブ内容（名前/レベル/場所/階層/保存時刻）が出ます。セーブ復元に失敗してもデータは消さず 503 を返す設計なので、ログを取ってから原因を修正すれば同じセッションで再開できます。Workers Logs（ダッシュボード）でも同じログを後から検索できます。
+
 ## テスト
 
 ```sh
