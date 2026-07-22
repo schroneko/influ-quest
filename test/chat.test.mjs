@@ -19,10 +19,15 @@ const PLAYER_ID = "9b2e67f1-f52f-4fc8-b7da-59fd4d9344a7";
 
 function createPlayersKv() {
   const puts = [];
+  const deletes = [];
   return {
     puts,
+    deletes,
     async put(key, value, options = {}) {
       puts.push({ key, value, options });
+    },
+    async delete(key) {
+      deletes.push(key);
     },
     async list() {
       return { keys: [], list_complete: true };
@@ -192,10 +197,8 @@ test("explicit new game writes a reset snapshot and uses session/ip rate limit k
   assert.equal(response.status, 200);
   assert.deepEqual(sessionKeys, [`chat:${SESSION_ID}`]);
   assert.deepEqual(ipKeys, []);
-  assert.equal(env.PLAYERS.puts.length, 1);
-  const snapshot = env.PLAYERS.puts[0].options.metadata;
-  assert.equal(snapshot.gold, 0);
-  assert.equal(snapshot.location, "おおてまちじょう");
+  assert.equal(env.PLAYERS.puts.length, 0);
+  assert.equal(env.PLAYERS.deletes.length, 1);
   const stored = await store.read(SESSION_ID);
   assert.equal(stored.turns, 0);
   assert.equal(stored.save.gold, 0);

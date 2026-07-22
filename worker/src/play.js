@@ -11,7 +11,7 @@ import {
   WEAPON_SHOP,
 } from "../../src/engine.js";
 import { createInitialState, readStoredGameData } from "../../src/state.js";
-import { isHeroNameTaken, writePlayerSnapshot } from "./board.js";
+import { deletePlayerSnapshot, isHeroNameTaken, writePlayerSnapshot } from "./board.js";
 
 const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
 const PAGE_CSP = [
@@ -185,8 +185,7 @@ function buildSuggestions(state, sceneText) {
         if (kind === "armor" && item.defense <= state.armorDefense) {
           continue;
         }
-        const shopName = kind === "weapon" ? "ぶきや" : "ぼうぐや";
-        opts.push(`${shopName}で ${name}を かう（${item.price}G）`);
+        opts.push(`${name}を かう（${item.price}G）`);
       }
       opts.push("みせを でる");
       return opts;
@@ -210,10 +209,10 @@ function buildSuggestions(state, sceneText) {
     if (sceneText.includes("くすりや「いらっしゃい") || sceneText.includes("くすりや「まいど")) {
       const opts = [];
       if (state.immunityCount < 3) {
-        opts.push(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
+        opts.push(`ワクチンを うつ（${VACCINE_PRICE}G）`);
       }
       if (state.medicineCount < 3) {
-        opts.push(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
+        opts.push(`かぜぐすりを かう（${MEDICINE_PRICE}G）`);
       }
       opts.push("みせを でる");
       return opts;
@@ -473,7 +472,20 @@ export function routeDirectCommand(state, rawMessage) {
   if (msg === "みせをでる") {
     return [{ action: "talk" }];
   }
-  let match = msg.match(/^ぶきやで(.+)をかう$/);
+  let match = msg.match(/^([^を]+)を(かう|うつ)$/);
+  if (match) {
+    const itemName = match[1];
+    if (Object.prototype.hasOwnProperty.call(WEAPON_SHOP, itemName)) {
+      return [{ action: "weapon_shop", item: itemName }];
+    }
+    if (Object.prototype.hasOwnProperty.call(ARMOR_SHOP, itemName)) {
+      return [{ action: "armor_shop", item: itemName }];
+    }
+    if (itemName === "ワクチン" || itemName === "かぜぐすり") {
+      return [{ action: "pharmacy", item: itemName }];
+    }
+  }
+  match = msg.match(/^ぶきやで(.+)をかう$/);
   if (match) {
     return [{ action: "weapon_shop", item: match[1] }];
   }
@@ -957,6 +969,9 @@ async function enforceModelRateLimit(env, sessionId) {
 }
 
 async function publishSnapshot(env, playerId, snapshot, ctx) {
+  if (snapshot && snapshot.name === heroPlaceholderName) {
+    return;
+  }
   const write = writePlayerSnapshot(env, playerId, snapshot);
   if (ctx && typeof ctx.waitUntil === "function") {
     ctx.waitUntil(write);
@@ -1024,7 +1039,9 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     } catch {
       return serviceUnavailableResponse();
     }
-    await publishSnapshot(env, playerId, engine.snapshot(), ctx);
+    try {
+      await deletePlayerSnapshot(env, playerId);
+    } catch {}
     return json({
       ok: true,
       reply: "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
@@ -2308,10 +2325,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
     if (/はじめから|やりなおす/.test(message)) {
       try {
         localStorage.removeItem(nameKey);
-      } catch {}
-      sessionId = crypto.randomUUID();
-      try {
-        localStorage.setItem(sessionKey, sessionId);
       } catch {}
       log.replaceChildren();
       hud.hidden = true;

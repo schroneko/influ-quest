@@ -5,6 +5,7 @@ import {
   decodeJumon,
   encodeJumon,
   infectionChanceByArmor,
+  maxHeroNameCodePoints,
   maxHpForLevel,
   maxJumonLength,
   normalizeHeroName,
@@ -1013,25 +1014,31 @@ ${artHtml}
     } catch {
       return errorText("なまえは 1〜24 もじで、みだれた もじは つかえない。");
     }
-    const finish = (taken: boolean) => {
-      if (taken) {
-        return errorText(`てんの こえ「${heroName}は すでに べつの ゆうしゃが なのっている。」`);
-      }
-      state.heroName = heroName;
+    const finish = (finalName: string, generation: number) => {
+      state.heroName = finalName;
       if (state.startedAtMs === 0) {
         state.startedAtMs = now();
       }
+      const successionLines =
+        generation > 1
+          ? [
+              `てんの こえ「その なは すでに でんせつに きざまれている。」`,
+              `てんの こえ「そなたは ${finalName}。ゆうしゃの なを つぐ ものだ！」`,
+              "",
+            ]
+          : [];
       if (heroName === "ちょまど") {
         state.fanMode = true;
         return okText(
           [
-            "てんの こえ「そなたの なは ちょまど。……ん？ その な、どこかで……」",
+            ...successionLines,
+            `てんの こえ「そなたの なは ${state.heroName}。……ん？ その な、どこかで……」`,
             "",
             "どこからか あたたかい かぜが ふいた。",
             "ちょまどファンモードが ON になった！",
             "",
             "（きこえますか…わたしも ちょまど です…あなたも ちょまど…？",
-            "せかいに ちょまどが ふたり…なんだか こころづよい です…）",
+            "せかいに ちょまどが ふえていく…なんだか こころづよい です…）",
           ].join("\n"),
         );
       }
@@ -1047,6 +1054,7 @@ ${artHtml}
         state.armorDefense = armorDefenseByName["かんせんたいさくスーツ"];
         return okText(
           [
+            ...successionLines,
             `てんの こえ「そなたの なは ${state.heroName}。……その なは まさか……！」`,
             "",
             "いにしえの ゆうしゃの きおくが よみがえった！",
@@ -1056,10 +1064,34 @@ ${artHtml}
           ].join("\n"),
         );
       }
-      return okText(`てんの こえ「そなたの なは ${state.heroName}。よい なだ！」`);
+      return okText(
+        [...successionLines, `てんの こえ「そなたの なは ${state.heroName}。よい なだ！」`].join(
+          "\n",
+        ),
+      );
     };
-    const taken = io.isNameTaken?.(heroName) ?? false;
-    return taken instanceof Promise ? taken.then(finish) : finish(taken);
+    const isTaken = async (candidate: string): Promise<boolean> => {
+      const taken = io.isNameTaken?.(candidate) ?? false;
+      return taken instanceof Promise ? await taken : taken;
+    };
+    const resolve = async (): Promise<ToolResult> => {
+      let candidate = heroName;
+      let generation = 1;
+      while (await isTaken(candidate)) {
+        generation += 1;
+        if (generation > 99) {
+          return errorText(
+            `てんの こえ「${heroName}の なは もう じゅうぶんに うけつがれた。べつの なを たのむ。」`,
+          );
+        }
+        const suffix = `${generation}せい`;
+        const baseChars = Array.from(heroName);
+        const maxBase = Math.max(1, maxHeroNameCodePoints - suffix.length);
+        candidate = baseChars.slice(0, maxBase).join("") + suffix;
+      }
+      return finish(candidate, generation);
+    };
+    return resolve();
   }
 
   async function handleTalk(): Promise<ToolResult> {
@@ -1097,7 +1129,7 @@ ${artHtml}
         if (state.startedAtMs === 0) {
           state.startedAtMs = now();
         }
-        if (state.heroName === "ちょまど") {
+        if (state.heroName.startsWith("ちょまど")) {
           return okText(
             HOST_QUEST_TEXT +
               "\n\nだいじん「……ところで ゆうしゃどの。その かお、さらわれた ひめに うりふたつ なのじゃが……まあ よい。たのんだぞ！」",
@@ -1149,7 +1181,7 @@ ${artHtml}
     if (state.bossDefeated && !state.princessCarried && state.lairDepth >= 5) {
       state.princessCarried = true;
       let rescue = PRINCESS_TEXT;
-      if (state.heroName === "ちょまど") {
+      if (state.heroName.startsWith("ちょまど")) {
         rescue +=
           "\n\nちょまどひめ「……あれ？ あなたも ちょまど！？\nふふ、せかいに ちょまどが ふたり。さいきょう ですね！」";
       }

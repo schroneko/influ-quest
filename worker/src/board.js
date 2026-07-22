@@ -272,6 +272,19 @@ export async function writePlayerSnapshot(env, playerId, snapshot, now = Date.no
   }
 }
 
+export async function deletePlayerSnapshot(env, playerId) {
+  if (typeof playerId !== "string" || !UUID_V4_PATTERN.test(playerId)) {
+    return false;
+  }
+  try {
+    const kv = getPlayersKv(env);
+    await kv.delete(makePlayerKey(getEventId(env), playerId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function isHeroNameTaken(env, name, excludedPlayerId = "") {
   const normalizedName = sanitizeName(name);
   if (normalizedName === null || normalizedName !== name) {

@@ -205,6 +205,21 @@ test("shop runtime boundaries reject prototype keys and redirect cross-category 
   assert.equal(engine.state.weapon, "アルコールスプレー");
 });
 
+test("duplicate hero names receive generation suffixes", async () => {
+  const engine = newEngine({
+    isNameTaken: (candidate) => candidate === "てすと" || candidate === "てすと2せい",
+  });
+  const result = await engine.handleNameHero({ name: "てすと" });
+  assert.match(text(result), /なを つぐ/);
+  assert.equal(engine.state.heroName, "てすと3せい");
+
+  const chomado = newEngine({ isNameTaken: (candidate) => candidate === "ちょまど" });
+  const branch = await chomado.handleNameHero({ name: "ちょまど" });
+  assert.match(text(branch), /ちょまどファンモードが ON/);
+  assert.equal(chomado.state.heroName, "ちょまど2せい");
+  assert.equal(chomado.state.fanMode, true);
+});
+
 test("talking to the minister repeatedly grants and confiscates gold", async () => {
   const engine = newEngine();
   await engine.handleNameHero({ name: "だいじんずき" });
@@ -317,11 +332,11 @@ test("resting cures influenza", () => {
   assert.equal(engine.state.infected, false);
 });
 
-test("start adventure opens with the 2026 prologue only once", () => {
+test("start adventure opens with the 2026 prologue only once", async () => {
   const engine = newEngine();
   const first = engine.handleStartAdventure();
   assert.match(text(first), /2026ねん/);
-  engine.handleNameHero({ name: "てすと" });
+  await engine.handleNameHero({ name: "てすと" });
   const second = engine.handleStartAdventure();
   assert.doesNotMatch(text(second), /2026ねん/);
 });
