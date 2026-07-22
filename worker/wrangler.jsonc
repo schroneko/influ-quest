@@ -5,6 +5,12 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "public"
+  },
   "vars": {
     "EVENT_ID": "shared-event"
   },
@@ -29,6 +35,10 @@
       {
         "name": "MCP_OBJECT",
         "class_name": "QuestAgent"
+      },
+      {
+        "name": "CHAT_SESSIONS",
+        "class_name": "BrowserChatSession"
       }
     ]
   },
@@ -36,6 +46,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["QuestAgent"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["BrowserChatSession"]
     }
   ],
   "ratelimits": [
@@ -59,7 +73,15 @@
       "name": "CHAT_RATE_LIMIT",
       "namespace_id": "2003",
       "simple": {
-        "limit": 10,
+        "limit": 40,
+        "period": 60
+      }
+    },
+    {
+      "name": "CHAT_IP_RATE_LIMIT",
+      "namespace_id": "2004",
+      "simple": {
+        "limit": 40,
         "period": 60
       }
     }

@@ -1,18 +1,40 @@
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
+const PAGE_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join("; ");
+const RESPONSE_SECURITY_HEADERS = {
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+};
+
 const JSON_HEADERS = {
   "cache-control": "no-store",
+  "content-security-policy": API_CSP,
   "content-type": "application/json; charset=utf-8",
+  ...RESPONSE_SECURITY_HEADERS,
 };
 
 const PAGE_HEADERS = {
   "cache-control": "no-store",
+  "content-security-policy": PAGE_CSP,
   "content-type": "text/html; charset=utf-8",
+  ...RESPONSE_SECURITY_HEADERS,
 };
 
 const BODY_LIMIT_BYTES = 2048;
 const CACHE_TTL_MS = 3000;
 export const KV_TTL_SECONDS = 21600;
 const DEFAULT_EVENT_ID = "default";
-const LOCATION_NAMES = new Set(["イベントかいじょう", "オフィスがい", "ウイルスのすみか"]);
+const LOCATION_NAMES = new Set(["おおてまちじょう", "まもりのまち", "ウイルスのすみか"]);
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTROL_OR_BIDI_PATTERN = new RegExp(
   "[\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]",
@@ -30,6 +52,8 @@ const RECORD_FIELD_NAMES = new Set([
   "cheatCleared",
   "princessCarried",
   "dragonDefeated",
+  "infected",
+  "clearMs",
   "updatedAt",
 ]);
 const INCOMING_FIELD_NAMES = new Set(
@@ -75,6 +99,7 @@ const hasValidProgression = (candidate) => {
   if (candidate.maxHp !== maxHpForLevel(candidate.level)) return false;
   if (candidate.princessCarried && (!candidate.dragonDefeated || candidate.cleared)) return false;
   if (candidate.cheatCleared && (!candidate.cleared || !candidate.dragonDefeated)) return false;
+  if (candidate.cleared && !candidate.dragonDefeated) return false;
   if (candidate.cleared && candidate.princessCarried) return false;
   return true;
 };
@@ -176,6 +201,8 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
   if (typeof candidate.cheatCleared !== "boolean") return null;
   if (typeof candidate.princessCarried !== "boolean") return null;
   if (typeof candidate.dragonDefeated !== "boolean") return null;
+  if (typeof candidate.infected !== "boolean") return null;
+  if (!isIntegerInRange(candidate.clearMs, 0, Number.MAX_SAFE_INTEGER)) return null;
   if (!isIntegerInRange(candidate.updatedAt, 0, Number.MAX_SAFE_INTEGER)) return null;
   if (!hasValidProgression(candidate)) return null;
   return {
@@ -189,6 +216,8 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
     cheatCleared: candidate.cheatCleared,
     princessCarried: candidate.princessCarried,
     dragonDefeated: candidate.dragonDefeated,
+    infected: candidate.infected,
+    clearMs: candidate.clearMs,
     updatedAt: candidate.updatedAt,
   };
 };
@@ -226,6 +255,10 @@ export async function writePlayerSnapshot(env, playerId, snapshot, now = Date.no
   if (!record) {
     return false;
   }
+  const writeWindow = getWriteWindow(env, now);
+  if (!writeWindow.valid || !writeWindow.writesOpen) {
+    return false;
+  }
   const eventId = getEventId(env);
   try {
     const kv = getPlayersKv(env);
@@ -239,18 +272,55 @@ export async function writePlayerSnapshot(env, playerId, snapshot, now = Date.no
   }
 }
 
+export async function isHeroNameTaken(env, name, excludedPlayerId = "") {
+  const normalizedName = sanitizeName(name);
+  if (normalizedName === null || normalizedName !== name) {
+    return false;
+  }
+  const kv = getPlayersKv(env);
+  const eventId = getEventId(env);
+  const ownKey = UUID_V4_PATTERN.test(excludedPlayerId)
+    ? makePlayerKey(eventId, excludedPlayerId)
+    : "";
+  const prefix = makeEventPrefix(eventId);
+  let cursor;
+  do {
+    let pageResult;
+    try {
+      pageResult = await kv.list({ prefix, limit: 1000, cursor });
+    } catch {
+      throw new ServiceUnavailableError();
+    }
+    for (const key of pageResult?.keys ?? []) {
+      if (key.name === ownKey) {
+        continue;
+      }
+      const record = validateRecordShape(key.metadata, { exactName: true });
+      if (record?.name === normalizedName) {
+        return true;
+      }
+    }
+    cursor = pageResult?.list_complete ? undefined : pageResult?.cursor;
+  } while (cursor);
+  return false;
+}
+
+const tierOf = (record) => {
+  if (record.cleared && !record.cheatCleared) return 0;
+  if (record.cheatCleared) return 1;
+  if (record.princessCarried) return 2;
+  if (record.dragonDefeated) return 3;
+  return 4;
+};
+
+const clearSortValue = (record) => (record.clearMs > 0 ? record.clearMs : Number.MAX_SAFE_INTEGER);
+
 const comparePlayers = (left, right) =>
-  Number(right.record.cheatCleared) - Number(left.record.cheatCleared) ||
-  Number(right.record.cleared) - Number(left.record.cleared) ||
-  Number(right.record.princessCarried) - Number(left.record.princessCarried) ||
-  Number(right.record.dragonDefeated) - Number(left.record.dragonDefeated) ||
+  tierOf(left.record) - tierOf(right.record) ||
+  clearSortValue(left.record) - clearSortValue(right.record) ||
   right.record.level - left.record.level ||
   right.record.gold - left.record.gold ||
-  right.record.updatedAt - left.record.updatedAt ||
   NAME_COMPARATOR.compare(left.record.name, right.record.name) ||
-  NAME_COMPARATOR.compare(left.record.location, right.record.location) ||
-  right.record.hp - left.record.hp ||
-  right.record.maxHp - left.record.maxHp ||
   left.key.localeCompare(right.key);
 
 export function createBoard(options = {}) {
@@ -481,225 +551,273 @@ const PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>インフルクエスト 会場ボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
-    --bg0: #06070b;
-    --bg1: #0f1623;
-    --panel: rgba(7, 10, 16, 0.88);
-    --line: rgba(255, 255, 255, 0.16);
-    --line-strong: rgba(255, 212, 74, 0.44);
-    --text: #f6f6f2;
-    --muted: #a9b3c2;
+    --white: #f8f8f8;
     --gold: #ffd44a;
     --mint: #7ee2ad;
-    --rose: #ff9e87;
+    --rose: #ff8a70;
     --violet: #c6a6ff;
     --sky: #85d6ff;
-    --card: rgba(16, 24, 37, 0.92);
-    --shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+    --dim: #9aa3b2;
+    --virus: #58d858;
+    --virus-dark: #17671f;
   }
   * {
     box-sizing: border-box;
   }
   html {
-    background:
-      radial-gradient(circle at top, rgba(133, 214, 255, 0.14), transparent 34%),
-      linear-gradient(180deg, #08101b 0%, #05060a 100%);
+    background: #000;
   }
   body {
     margin: 0;
     min-height: 100vh;
-    background: transparent;
-    color: var(--text);
+    background: #000;
+    color: var(--white);
     font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
-    line-height: 1.7;
-    padding: 24px 16px 48px;
+    line-height: 1.9;
+    padding: 24px 14px 56px;
   }
   body::before {
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background:
-      linear-gradient(transparent 0 2px, rgba(255, 255, 255, 0.028) 2px 4px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.01), transparent 35%);
-    background-size: 100% 4px, 100% 100%;
-    opacity: 0.9;
+    background: linear-gradient(transparent 0 2px, rgba(255, 255, 255, 0.03) 2px 4px);
+    background-size: 100% 4px;
+    z-index: 9;
   }
   .shell {
-    max-width: 1120px;
+    max-width: 1080px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+  .dqwin {
     position: relative;
+    background: #000;
+    border: 3px solid var(--white);
+    border-radius: 10px;
+    padding: 18px 20px 16px;
+  }
+  .dqwin::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--white);
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .dqwin[data-title]::after {
+    content: attr(data-title);
+    position: absolute;
+    top: -16px;
+    left: 18px;
+    background: #000;
+    padding: 0 10px;
+    font-size: 14px;
+    letter-spacing: 0.14em;
+    color: var(--white);
   }
   .masthead {
+    text-align: center;
     display: grid;
-    gap: 12px;
-    margin-bottom: 18px;
+    gap: 8px;
+    justify-items: center;
   }
   .eyebrow {
     margin: 0;
-    color: var(--gold);
-    letter-spacing: 0.18em;
+    color: var(--dim);
+    letter-spacing: 0.5em;
     font-size: 12px;
-    text-transform: uppercase;
+  }
+  .titlerow {
+    display: flex;
+    align-items: center;
+    gap: 28px;
   }
   h1 {
     margin: 0;
-    font-size: clamp(28px, 5.2vw, 44px);
-    letter-spacing: 0.12em;
-    color: var(--gold);
-    text-shadow: 4px 4px 0 rgba(6, 48, 74, 0.95);
-  }
-  .intro {
-    margin: 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
-  .join {
-    background: var(--panel);
-    border: 2px solid var(--line);
-    border-radius: 16px;
-    padding: 14px 18px;
-    margin-bottom: 18px;
-  }
-  .join h2 {
-    margin: 0 0 8px;
-    font-size: 16px;
-    color: var(--sky);
+    font-size: clamp(22px, 6.2vw, 56px);
     letter-spacing: 0.1em;
+    color: var(--gold);
+    text-shadow: 4px 4px 0 #7a1f1f, 8px 8px 0 rgba(0, 0, 0, 0.9);
+    white-space: nowrap;
+  }
+  .tagline {
+    margin: 0;
+    font-size: clamp(13px, 2.6vw, 16px);
+  }
+  .tagline .pun {
+    color: var(--sky);
+  }
+  .sprite {
+    position: relative;
+    width: 55px;
+    height: 55px;
+    flex: none;
+    animation: bob 1.2s steps(2) infinite;
+  }
+  .sprite .px {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    box-shadow:
+      25px 0 var(--virus-dark),
+      25px 5px var(--virus-dark),
+      5px 5px var(--virus-dark),
+      45px 5px var(--virus-dark),
+      10px 10px var(--virus-dark),
+      20px 10px var(--virus-dark), 25px 10px var(--virus-dark), 30px 10px var(--virus-dark),
+      40px 10px var(--virus-dark),
+      15px 15px var(--virus-dark),
+      20px 15px var(--virus), 25px 15px var(--virus), 30px 15px var(--virus),
+      35px 15px var(--virus-dark),
+      10px 20px var(--virus-dark),
+      15px 20px var(--virus),
+      20px 20px #000,
+      25px 20px var(--virus),
+      30px 20px #000,
+      35px 20px var(--virus),
+      40px 20px var(--virus-dark),
+      0 25px var(--virus-dark), 5px 25px var(--virus-dark),
+      10px 25px var(--virus), 15px 25px var(--virus), 20px 25px var(--virus), 25px 25px var(--virus), 30px 25px var(--virus), 35px 25px var(--virus), 40px 25px var(--virus),
+      45px 25px var(--virus-dark), 50px 25px var(--virus-dark),
+      10px 30px var(--virus-dark),
+      15px 30px var(--virus),
+      20px 30px #000, 25px 30px #000, 30px 30px #000,
+      35px 30px var(--virus),
+      40px 30px var(--virus-dark),
+      15px 35px var(--virus-dark),
+      20px 35px var(--virus), 25px 35px var(--virus), 30px 35px var(--virus),
+      35px 35px var(--virus-dark),
+      10px 40px var(--virus-dark),
+      20px 40px var(--virus-dark), 25px 40px var(--virus-dark), 30px 40px var(--virus-dark),
+      40px 40px var(--virus-dark),
+      5px 45px var(--virus-dark),
+      25px 45px var(--virus-dark),
+      45px 45px var(--virus-dark),
+      25px 50px var(--virus-dark);
+  }
+  @keyframes bob {
+    50% {
+      transform: translateY(4px);
+    }
+  }
+  .talk {
+    margin: 0;
+    font-size: 15px;
+  }
+  .talk + ol,
+  ol + .talk {
+    margin-top: 10px;
+  }
+  .talk .speaker {
+    color: var(--gold);
   }
   .join ol {
-    margin: 0 0 8px;
-    padding-left: 22px;
-    font-size: 14px;
+    margin: 10px 0 0;
+    padding-left: 26px;
+    font-size: 15px;
   }
   .join li {
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
-  .join p {
-    margin: 0;
-    font-size: 14px;
-    color: var(--muted);
+  .join li::marker {
+    color: var(--gold);
   }
   .join code {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--line);
+    display: inline-block;
+    background: #101418;
+    border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 6px;
-    padding: 1px 6px;
-    font-size: 13px;
+    padding: 1px 8px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--mint);
     word-break: break-all;
   }
   .join a {
     color: var(--sky);
   }
-  .board {
-    background: linear-gradient(180deg, rgba(9, 12, 18, 0.98), rgba(5, 8, 12, 0.94));
-    border: 4px double rgba(255, 255, 255, 0.72);
-    border-radius: 20px;
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    position: relative;
-  }
-  .board::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border: 1px solid rgba(255, 212, 74, 0.28);
-    border-radius: 16px;
-    pointer-events: none;
-  }
   .statusbar {
     display: grid;
-    gap: 10px;
-    padding: 18px;
-    border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(22, 30, 44, 0.94), rgba(11, 16, 24, 0.92));
-  }
-  .statusline {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 28px;
-  }
-  .lamp {
-    width: 12px;
-    height: 12px;
-    border-radius: 999px;
-    background: var(--sky);
-    box-shadow: 0 0 0 3px rgba(133, 214, 255, 0.18);
-    flex: none;
-  }
-  .statusbar p {
-    margin: 0;
+    gap: 6px;
+    margin-bottom: 12px;
   }
   .status-text {
+    margin: 0;
     font-size: 16px;
   }
+  .status-text::before {
+    content: "＊「";
+  }
+  .status-text::after {
+    content: "」";
+  }
   .status-detail {
-    color: var(--muted);
+    margin: 0;
+    color: var(--dim);
     font-size: 13px;
     min-height: 1.7em;
   }
   .summary {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .summary-box {
-    background: rgba(0, 0, 0, 0.24);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 12px 14px;
-    min-height: 72px;
-  }
-  .summary-label {
-    margin: 0 0 4px;
-    color: var(--muted);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-  }
-  .summary-value {
     margin: 0;
-    font-size: 20px;
-    color: var(--text);
-    word-break: break-word;
+    font-size: 15px;
   }
-  .table-shell {
-    padding: 12px 18px 18px;
+  .summary .accent {
+    color: var(--gold);
+  }
+  .board[data-view="error"] .status-text {
+    color: var(--rose);
+  }
+  .board[data-view="stale"] .status-text {
+    color: var(--gold);
   }
   table {
     width: 100%;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
+    font-size: 15px;
   }
   caption {
     text-align: left;
-    color: var(--muted);
-    padding: 0 0 12px;
+    color: var(--dim);
+    font-size: 13px;
+    padding: 0 0 10px;
   }
   th,
   td {
     text-align: left;
-    padding: 10px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 9px 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.25);
     vertical-align: top;
   }
   thead th {
     border-top: none;
-    color: var(--muted);
-    font-size: 12px;
-    letter-spacing: 0.1em;
+    color: var(--dim);
+    font-size: 13px;
+    letter-spacing: 0.12em;
     font-weight: normal;
   }
-  tbody tr:first-child td {
-    border-top-color: rgba(255, 212, 74, 0.24);
+  tbody tr:nth-child(1) .cell-rank {
+    color: var(--gold);
   }
-  tbody tr {
-    background: transparent;
+  tbody tr:nth-child(2) .cell-rank {
+    color: var(--sky);
   }
-  tbody tr:nth-child(odd) {
-    background: rgba(255, 255, 255, 0.018);
+  tbody tr:nth-child(3) .cell-rank {
+    color: var(--rose);
+  }
+  .cell-rank {
+    white-space: nowrap;
   }
   .cell-name {
     max-width: 220px;
@@ -708,6 +826,9 @@ const PAGE = String.raw`<!doctype html>
   }
   .cell-status {
     color: var(--sky);
+  }
+  .cell-status::before {
+    content: "▶ ";
   }
   .cell-status.status-clear {
     color: var(--gold);
@@ -722,43 +843,37 @@ const PAGE = String.raw`<!doctype html>
     color: var(--rose);
   }
   .cell-updated {
-    color: var(--muted);
+    color: var(--dim);
     white-space: nowrap;
   }
   .state-empty td {
-    color: var(--muted);
+    color: var(--dim);
   }
-  .board[data-view="loading"] .lamp {
-    background: var(--sky);
-    box-shadow: 0 0 0 3px rgba(133, 214, 255, 0.18);
+  .foot {
+    text-align: center;
+    color: var(--dim);
+    font-size: 13px;
   }
-  .board[data-view="empty"] .lamp {
-    background: var(--muted);
-    box-shadow: 0 0 0 3px rgba(169, 179, 194, 0.18);
+  .blink {
+    animation: blink 1s steps(1) infinite;
   }
-  .board[data-view="fresh"] .lamp {
-    background: var(--mint);
-    box-shadow: 0 0 0 3px rgba(126, 226, 173, 0.18);
-  }
-  .board[data-view="stale"] .lamp {
-    background: var(--gold);
-    box-shadow: 0 0 0 3px rgba(255, 212, 74, 0.18);
-  }
-  .board[data-view="error"] .lamp {
-    background: var(--rose);
-    box-shadow: 0 0 0 3px rgba(255, 158, 135, 0.18);
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
   }
   @media (max-width: 760px) {
     body {
-      padding: 16px 10px 32px;
+      padding: 16px 8px 40px;
     }
-    .statusbar,
-    .table-shell {
-      padding-left: 12px;
-      padding-right: 12px;
+    .titlerow {
+      gap: 8px;
     }
-    .summary {
-      grid-template-columns: 1fr;
+    .sprite {
+      width: 40px;
+      height: 40px;
+      transform: scale(0.7);
+      transform-origin: center;
     }
     table,
     thead,
@@ -767,6 +882,10 @@ const PAGE = String.raw`<!doctype html>
     th,
     td {
       display: block;
+    }
+    caption {
+      display: block;
+      width: 100%;
     }
     thead {
       position: absolute;
@@ -783,29 +902,30 @@ const PAGE = String.raw`<!doctype html>
       gap: 12px;
     }
     tbody tr {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--card);
-      padding: 8px 0;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      border: 2px solid var(--white);
+      border-radius: 8px;
+      padding: 6px 0;
     }
     tbody td {
       border: none;
-      padding: 7px 14px;
+      padding: 5px 14px;
       display: grid;
-      grid-template-columns: minmax(82px, 94px) minmax(0, 1fr);
+      grid-template-columns: minmax(86px, 100px) minmax(0, 1fr);
       gap: 10px;
       align-items: baseline;
       white-space: normal;
     }
     tbody td::before {
       content: attr(data-label);
-      color: var(--muted);
+      color: var(--dim);
       font-size: 12px;
       letter-spacing: 0.06em;
     }
     .cell-name {
       max-width: none;
+    }
+    .cell-status::before {
+      content: attr(data-label);
     }
     .cell-updated {
       white-space: normal;
@@ -816,47 +936,42 @@ const PAGE = String.raw`<!doctype html>
 <body>
 <div class="shell">
   <header class="masthead">
-    <p class="eyebrow">Public Venue Dashboard</p>
-    <h1>インフルクエスト 会場ボード</h1>
-    <p class="intro">インフルだいまおうに さらわれた ちょまどひめを、みんなで たすけにいく MCP ゲームの会場ボードだよ。インフルエンサーではなく、インフルエンザのクエストです。参加者データを約4秒ごとに更新するの。</p>
+    <p class="eyebrow">INFLU QUEST</p>
+    <div class="titlerow">
+      <div class="sprite" aria-hidden="true"><i class="px"></i></div>
+      <h1>インフルクエスト</h1>
+      <div class="sprite" aria-hidden="true"><i class="px"></i></div>
+    </div>
+    <p class="tagline">インフルだいまおうに さらわれた ちょまどひめを すくいだせ！<br><span class="pun">インフルエンサーでは なく インフルエンザの クエストです。</span></p>
   </header>
-  <section class="join">
-    <h2>あそびかた</h2>
+  <section class="dqwin join" data-title="― あそびかた ―">
+    <p class="talk"><span class="speaker">やくざいし</span>「よくきた ぼうけんしゃよ。てじゅんは みっつ じゃ。」</p>
     <ol>
-      <li>スマホで claude.ai にログインする（無料アカウントで大丈夫）</li>
+      <li>スマホで claude.ai にログインする（無料アカウントで OK）</li>
       <li>設定の「コネクタ」からカスタムコネクタを追加して、URL に <code>https://influ-quest.nukoevi.app/mcp</code> を入れる</li>
       <li>新しいチャットで「インフルクエストをはじめて」と話しかける</li>
     </ol>
-    <p>コネクタが使えないときは <a href="/play">ブラウザ版</a> で遊べるよ。いまみんながやったこの登録操作こそが MCP なの。</p>
+    <p class="talk"><span class="speaker">やくざいし</span>「コネクタが つかえぬ ものは <a href="/play">ブラウザばん</a> へ ゆくがよい。むりょうプランで すでに べつの コネクタを つかっている ものは いちど はずすのじゃ。」</p>
   </section>
-  <main class="board" data-view="loading">
+  <main class="dqwin board" data-title="― ぼうけんのしょ ―" data-view="loading">
     <section class="statusbar" aria-live="polite" aria-atomic="true">
-      <div class="statusline">
-        <span class="lamp" aria-hidden="true"></span>
-        <p class="status-text" id="status-text">会場データを読み込んでいるよ</p>
-      </div>
-      <p class="status-detail" id="status-detail">はじめての通信を待っているの</p>
-      <div class="summary">
-        <section class="summary-box">
-          <p class="summary-label">参加者数</p>
-          <p class="summary-value" id="summary-count">読み込み中</p>
-        </section>
-        <section class="summary-box">
-          <p class="summary-label">最終更新</p>
-          <p class="summary-value" id="summary-updated">まだありません</p>
-        </section>
-      </div>
+      <p class="status-text" id="status-text">かいじょうの データを よみこんでいる……</p>
+      <p class="status-detail" id="status-detail">はじめての つうしんを まっている</p>
+      <p class="summary">ぼうけんしゃ <span class="accent" id="summary-count">--</span> にん　／　こうしん <span class="accent" id="summary-updated">--:--:--</span></p>
     </section>
     <section class="table-shell">
       <table aria-describedby="status-detail">
-        <caption>会場の参加者一覧</caption>
+        <caption>じゅんいは クリア → きゅうしゅつちゅう → とうばつずみ → ぼうけんちゅう の じゅんで、どうじゅんなら クリアタイム → レベル → ゴールド → なまえ で きまる。きろくは 6 じかんで きえる</caption>
         <thead>
           <tr>
+            <th scope="col">じゅんい</th>
             <th scope="col">なまえ</th>
             <th scope="col">レベル</th>
             <th scope="col">HP</th>
+            <th scope="col">ゴールド</th>
             <th scope="col">ばしょ</th>
             <th scope="col">じょうたい</th>
+            <th scope="col">タイム</th>
             <th scope="col">こうしん</th>
           </tr>
         </thead>
@@ -864,6 +979,7 @@ const PAGE = String.raw`<!doctype html>
       </table>
     </section>
   </main>
+  <p class="foot">この がめんは じどうで こうしん される<span class="blink">▼</span></p>
 </div>
 <script>
   const board = document.querySelector(".board");
@@ -873,20 +989,20 @@ const PAGE = String.raw`<!doctype html>
   const summaryCount = document.getElementById("summary-count");
   const summaryUpdated = document.getElementById("summary-updated");
   const viewMessages = {
-    loading: "会場データを読み込んでいるよ",
-    empty: "まだ公開された参加者データがないよ",
-    fresh: "会場の最新データを表示しているよ",
-    stale: "更新に失敗したから、直前の表示をそのまま残しているよ",
-    error: "会場データと通信できないよ",
+    loading: "かいじょうの データを よみこんでいる……",
+    empty: "まだ だれも ぼうけんに でていない",
+    fresh: "かいじょうの さいしんデータを ひょうじちゅう",
+    stale: "こうしんに しっぱいした。ひとつまえの ひょうじを のこしている",
+    error: "かいじょうデータと つうしん できない",
   };
   const detailMessages = {
-    loading: "はじめての通信を待っているの",
-    empty: "参加者が送信すると、ここに並ぶよ",
-    fresh: "いま見えている一覧は最新の応答だよ",
-    stale: "しばらくすると自動で再試行するよ",
-    error: "ページを開いたままだと自動で再接続するよ",
+    loading: "はじめての つうしんを まっている",
+    empty: "ぼうけんしゃが あらわれると ここに ならぶ",
+    fresh: "いま みえている いちらんが さいしんの きろく",
+    stale: "しばらくすると じどうで さいちょうせん する",
+    error: "ひらいたままに しておけば じどうで さいせつぞく する",
   };
-  const rowLabels = ["なまえ", "レベル", "HP", "ばしょ", "じょうたい", "こうしん"];
+  const rowLabels = ["じゅんい", "なまえ", "レベル", "HP", "ゴールド", "ばしょ", "じょうたい", "タイム", "こうしん"];
   const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
     month: "2-digit",
     day: "2-digit",
@@ -913,7 +1029,7 @@ const PAGE = String.raw`<!doctype html>
   };
   const formatTimestamp = (value) => {
     if (typeof value !== "number" || !Number.isFinite(value)) {
-      return "不明";
+      return "ふめい";
     }
     return timeFormatter.format(new Date(value));
   };
@@ -924,30 +1040,44 @@ const PAGE = String.raw`<!doctype html>
     if (player.dragonDefeated) return { label: "だいまおうを たおした", cls: "status-boss" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
+  const formatClearTime = (clearMs) => {
+    if (typeof clearMs !== "number" || clearMs <= 0) {
+      return "--";
+    }
+    const totalSeconds = Math.floor(clearMs / 1000);
+    return String(Math.floor(totalSeconds / 60)) + "ふん " + String(totalSeconds % 60) + "びょう";
+  };
   const renderPlayers = (players) => {
     const fragment = document.createDocumentFragment();
     if (!players.length) {
       const tr = document.createElement("tr");
       tr.className = "state-empty";
       const td = document.createElement("td");
-      td.colSpan = 6;
+      td.colSpan = 9;
       td.setAttribute("data-label", "おしらせ");
-      td.textContent = "まだ だれも ぼうけんに でていないよ";
+      td.textContent = "＊「まだ だれも ぼうけんに でていない」";
       tr.appendChild(td);
       fragment.appendChild(tr);
       rows.replaceChildren(fragment);
       return;
     }
-    for (const player of players) {
+    const nameSeen = new Map();
+    players.forEach((player, index) => {
+      const seenCount = (nameSeen.get(player.name) ?? 0) + 1;
+      nameSeen.set(player.name, seenCount);
+      const displayName = seenCount === 1 ? player.name : player.name + "（" + String(seenCount) + "）";
       const tr = document.createElement("tr");
       const status = statusOf(player);
       const values = [
-        { label: rowLabels[0], text: player.name, className: "cell-name" },
-        { label: rowLabels[1], text: String(player.level) },
-        { label: rowLabels[2], text: String(player.hp) + " / " + String(player.maxHp) },
-        { label: rowLabels[3], text: player.location },
-        { label: rowLabels[4], text: status.label, className: "cell-status " + status.cls },
-        { label: rowLabels[5], text: formatTimestamp(player.updatedAt), className: "cell-updated" },
+        { label: rowLabels[0], text: String(index + 1) + " い", className: "cell-rank" },
+        { label: rowLabels[1], text: displayName, className: "cell-name" },
+        { label: rowLabels[2], text: String(player.level) },
+        { label: rowLabels[3], text: String(player.hp) + " / " + String(player.maxHp) },
+        { label: rowLabels[4], text: String(player.gold) + " G" },
+        { label: rowLabels[5], text: player.location },
+        { label: rowLabels[6], text: status.label, className: "cell-status " + status.cls },
+        { label: rowLabels[7], text: formatClearTime(player.clearMs) },
+        { label: rowLabels[8], text: formatTimestamp(player.updatedAt), className: "cell-updated" },
       ];
       for (const cell of values) {
         const td = document.createElement("td");
@@ -957,7 +1087,7 @@ const PAGE = String.raw`<!doctype html>
         tr.appendChild(td);
       }
       fragment.appendChild(tr);
-    }
+    });
     rows.replaceChildren(fragment);
   };
   const scheduleNext = () => {
@@ -999,7 +1129,7 @@ const PAGE = String.raw`<!doctype html>
     state.lastGeneratedAt = snapshot.generatedAt;
     state.hasSuccessfulSnapshot = true;
     renderPlayers(snapshot.players);
-    setSummary(String(snapshot.players.length) + "人", formatTimestamp(snapshot.generatedAt));
+    setSummary(String(snapshot.players.length), formatTimestamp(snapshot.generatedAt));
     if (snapshot.players.length === 0) {
       setView("empty");
       return;
@@ -1009,11 +1139,11 @@ const PAGE = String.raw`<!doctype html>
   const handleRefreshFailure = () => {
     if (state.hasSuccessfulSnapshot) {
       setView("stale");
-      setSummary(String(state.players.length) + "人", formatTimestamp(state.lastGeneratedAt));
+      setSummary(String(state.players.length), formatTimestamp(state.lastGeneratedAt));
       return;
     }
     renderPlayers([]);
-    setSummary("通信失敗", "まだありません");
+    setSummary("--", "--:--:--");
     setView("error");
   };
   const refresh = () => {
@@ -1040,7 +1170,7 @@ const PAGE = String.raw`<!doctype html>
     }
     void refresh();
   });
-  setSummary("読み込み中", "まだありません");
+  setSummary("--", "--:--:--");
   setView("loading");
   renderPlayers([]);
   void refresh();

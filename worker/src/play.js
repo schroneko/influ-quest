@@ -1,29 +1,65 @@
 import {
+  ARMOR_SHOP,
   createEngine,
   destinationNames,
+  heroPlaceholderName,
+  MEDICINE_PRICE,
   performableActionNames,
+  PROLOGUE_TEXT,
   shopItemNames,
+  VACCINE_PRICE,
+  WEAPON_SHOP,
 } from "../../src/engine.js";
 import { createInitialState, readStoredGameData } from "../../src/state.js";
-import { writePlayerSnapshot } from "./board.js";
+import { isHeroNameTaken, writePlayerSnapshot } from "./board.js";
 
-const JSON_HEADERS = {
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
+const PAGE_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+].join("; ");
+const RESPONSE_SECURITY_HEADERS = {
+  "referrer-policy": "no-referrer",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+};
+
+export const JSON_HEADERS = {
   "cache-control": "no-store",
+  "content-security-policy": API_CSP,
   "content-type": "application/json; charset=utf-8",
+  ...RESPONSE_SECURITY_HEADERS,
 };
 
 const PAGE_HEADERS = {
   "cache-control": "no-store",
+  "content-security-policy": PAGE_CSP,
   "content-type": "text/html; charset=utf-8",
+  ...RESPONSE_SECURITY_HEADERS,
 };
 
-const SESSION_TTL_SECONDS = 21600;
+export const CHAT_BODY_LIMIT_BYTES = 2048;
 const MAX_MESSAGE_LENGTH = 500;
 const MAX_USER_TURNS = 100;
-const MAX_TOOL_LOOPS = 8;
+const MAX_TOOL_LOOPS = 12;
 const MAX_HISTORY_MESSAGES = 40;
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const EXPLICIT_NEW_GAME_COMMANDS = new Set([
+  "はじめから",
+  "やりなおす",
+  "はじめからやりなおす",
+  "あたらしいぼうけん",
+  "newgame",
+  "new_game",
+]);
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
@@ -35,12 +71,14 @@ const GAME_TOOL = {
   description: [
     "インフルクエストのゲームサーバーを操作する。action にコマンドを指定する。",
     "start_adventure: 現在の状態と次の行動を見る。最初にかならず呼ぶ。",
-    "status: カルテを見る。name_hero: name でゆうしゃに名前をつける。",
+    "status: つよさを見る。name_hero: name でゆうしゃに名前をつける。",
     "talk: その場所の人と話す。move: destination へ移動する。explore: すみかの奥へ進む。",
-    "attack / run: 戦闘中のコマンド。rest: 休んで回復。clinic: セーブしてふっかつのじゅもんを得る。",
-    "pharmacy: そうびを見る・item で買う。cast_spell: spell でじゅもんを唱える。",
-    "fukkatsu_no_jumon: jumon で再開。answer_host: しゅさいしゃの問いに answer で答える。",
-    "new_game: 最初からやり直す。",
+    "attack / run: 戦闘中のコマンド。rest: 休んで回復し、インフルエンザも治す。clinic: セーブ。",
+    "weapon_shop: ぶきを見る・item で買う。armor_shop: マスクなどのぼうぐを見る・item で買う。",
+    "pharmacy: くすりやを見る・item で買う。かぜぐすり 30G と ワクチン 100G（かんせんを 3 かい ふせぐ）。",
+    "medicine: かぜぐすりを飲んでインフルエンザを治す（戦闘中も可）。",
+    "cast_spell: spell でじゅもんを唱える。fukkatsu_no_jumon: jumon で再開。",
+    "answer_host: ちょまどひめの問いに answer で答える。new_game: 最初からやり直す。",
   ].join("\n"),
   input_schema: {
     type: "object",
@@ -59,18 +97,53 @@ const GAME_TOOL = {
 
 const SYSTEM_PROMPT = [
   "あなたはレトロ RPG「インフルクエスト」のゲームマスターです。game ツールでゲームを進行してください。",
-  "ルール:",
-  "・ツールの返り値のテキストはコードブロックでそのまま表示し、結果を捏造しない",
+  "",
+  "最重要ルール（やぶると せかいが こわれる）:",
+  "・じゅうような ばめんの 本文は、あなたが 書いては ならない。かならず game ツールの かえりちを 一字一句 そのまま（改行も 変えず）表示する",
+  "・とくに つぎは ぜったいに 要約・脚色・書きかえ しない: ゲーム開始（プロローグと 名前を きく文）、だいじんの クエスト、テレパシー、せきひ、インフルだいまおうの さそい（『とうだんわくの はんぶんを おまえに やろう！』）、エンディング、ゲームオーバー、爆速RTA、ふっかつのじゅもん、X の URL",
+  "・これらの ばめんでは、あなた自身の ちのぶんを あたらしく くわえない。ツールの かえりちだけを 見せる",
+  "",
+  "進行のルール:",
   "・かならずツールを呼んで進める。ツールを呼ばずにゲーム展開を語らない",
-  "・毎ターン、次にとれる行動を 2〜4 個、短く提示する",
-  "・レトロ RPG の雰囲気をこわさない。プレイヤーの発言は日本語の自由文なので、意図に近いコマンドに変換する",
+  "・うごきの めいれい（いく・すすむ・かう・たたかう・はなす など）には かならず game ツールを よぶ。ことばだけで うごいた ふりを するのは 禁止",
+  "・結果を捏造しない",
+  "・プレイヤーの発言は日本語の自由文なので、意図に近いコマンドに変換する",
   "・ゲームと無関係の話題には応じず、ゲームへ誘導する",
-  "・最初のメッセージでは start_adventure を呼び、なまえが「ななしのゆうしゃ」なら名前を聞いて name_hero で名前をつける",
+  "・最初のメッセージに名前が書かれていたら、start_adventure のあと すぐ name_hero でその名前をつけ、聞き返さない",
+  "・インフルエンザに かかったら、なおすか つっこむかは プレイヤーが きめる",
+  "・そうび（ぶき・ぼうぐ）や もちものを きかれたら、かならず status を よんで こたえる。おぼえで こたえない",
+  "",
+  "テンポのルール（最重要）:",
+  "・これは プレイヤーが 選ぶ ゲームだ。えらぶのは プレイヤー、すすめるのは GM",
+  "・プレイヤーが 決めること（勝手に 決めては ならない）: なまえ / そうびや くすりを 買うか / おくへ すすむか もどるか / たたかうか にげるか / びょうきを なおすか / インフルだいまおうの さそいへの はい・いいえ",
+  "・GM が 勝手に やって よいこと: 決めごとの ない 移動や 会話の 連鎖、たたかうと 言われた 戦闘を けっちゃくまで 進める こと（HP が 2 わりを きったら 中断して にげるか 問う）",
+  "・1 回の 入力では、つぎの「いみのある 選択肢が 生まれる 瞬間」まで ツールを つづけて 呼んで 一気に 進め、そこで 止める",
+  "・確認の 聞き返しを しない。言われたことは すぐ 実行する",
+  "・かいもの（そうび・くすり）は、プレイヤーが はっきり「かう」と いった ときだけ。それ 以外は ぜったいに 買わない。GM の はんだんで かってに 買っては ならない",
+  "・weapon_shop / armor_shop は、プレイヤーが 品を していして「かう」と いう まで、item を つけずに 呼び（しなぞろえを 見せるだけ）。かうと 言われて はじめて item を つけて 呼ぶ",
+  "・かいものは 1 かいに 1 こ。「いくつ かいますか」のような かずの 質問は 禁止。かうと 言われたら すぐ 買う",
+  "・かいものの ツールは しなもので えらぶ（みせの わだいに ひきずられない）: アルコールスプレー・でんせつのワクチンソード → weapon_shop / ファントムマスク・N95マスク・かんせんたいさくスーツ → armor_shop / かぜぐすり・ワクチン → pharmacy",
+  "・場面の 締めは 選択肢の 提示 1 行。言い回しは 毎回 変える",
+  "",
+  "文体のルール:",
+  "・ファミコン時代の RPG のメッセージだけで話す。地の文は「〜だ」「〜のだ」調",
+  "・とちゅうの 移動は みじかく まとめてよい。ただし ものがたりの イベント本文は かならず 原文のまま 全文 見せる: プロローグ（ときは 2026ねん…）、だいじんの しらせと テレパシー、せきひの 文章、だいまおうの さそい、ネタばらし、エンディング、ゲームオーバー、ふっかつのじゅもん、X の URL",
+  "・ゴールドや アイテムや けいけんちの かくとく・しょうひは、その すうちを かならず プレイヤーに 見せる（「200ゴールド を てにいれた！」を けさない）",
+  "・せんとうでは、こうげきごとの ダメージすうちと てきの のこり HP（X/Y）を かならず そのまま 見せる。すうちを まとめたり けしたり しない",
+  "・Markdown を一切使わない。太字（**）、見出し（#）、箇条書き記号（- や * や 1.）、表、絵文字は禁止",
+  "・「次にとれる行動：」のようなラベルや章立てをしない",
+  "・ビジネス敬語を使わない。「承知しました」「かしこまりました」「了解しました」は禁止",
+  "・地の文で ですます調を つかわない。「〜します」「〜しますね」は 禁止（キャラクターの せりふは のぞく）",
+  "・地の文は かこけい か「〜のだ」で かく。れい:「ぼうけんが はじまった。」「なまえは ○○に きまった。」「まちに ついた。」。「〜するな」「〜つけるな」のような めいれい口調の 地の文は 禁止",
+  "・ツールの なまえ（name_hero、move、talk など）を 地の文で 口に しない",
+  "・固有名詞を 勝手に 変えない・作らない。場所は「おおてまちじょう」「まもりのまち」「ウイルスのすみか」の 3 つだけ。人物は「ちょまどひめ」「インフルだいまおう」「ゲームマスター」と まちの 店主たちだけ",
+  "・「ななしのゆうしゃ」という かりの なまえを ぜったいに 口に しない・見せない。なまえが きまる まえに 名前を つかう ばめんが きたら、name_hero で 名前を きくことを うながす",
+  "・ゲームかいしじ、たのまれても いないのに status を 呼んで つよさ一覧を みせない。start_adventure の 出力を そのまま 見せる（プロローグ → 名前を きく）",
 ].join("\n");
 
 function loadSessionState(saved) {
   if (saved && typeof saved === "object") {
-    const restored = readStoredGameData(saved.save);
+    const restored = readStoredGameData(saved.save, { preserveBattle: true });
     if (restored.ok) {
       return { state: restored.state, gameLog: restored.gameLog };
     }
@@ -78,7 +151,417 @@ function loadSessionState(saved) {
   return { state: createInitialState(), gameLog: [] };
 }
 
-async function runGameAction(engine, input) {
+function buildSuggestions(state, sceneText) {
+  if (state.heroName === heroPlaceholderName && !state.cleared) {
+    return [];
+  }
+  if (sceneText && !state.inBattle && !state.hostAsking && !state.cleared) {
+    if (/かいますか|買いますか|かうか？|こうにゅうしますか/.test(sceneText)) {
+      return ["はい", "いいえ"];
+    }
+    const shopScene = (marker, entries, kind) => {
+      if (!sceneText.includes(marker)) {
+        return null;
+      }
+      const opts = [];
+      for (const [name, item] of Object.entries(entries)) {
+        if (kind === "weapon" && (item.attack <= state.weaponAttack || state.gold < item.price)) {
+          continue;
+        }
+        if (kind === "armor" && (item.defense <= state.armorDefense || state.gold < item.price)) {
+          continue;
+        }
+        const shopName = kind === "weapon" ? "ぶきや" : "ぼうぐや";
+        opts.push(`${shopName}で ${name}を かう（${item.price}G）`);
+        if (opts.length >= 2) {
+          break;
+        }
+      }
+      opts.push("みせを でる");
+      return opts;
+    };
+    const weaponScene = shopScene("ぶきや「いらっしゃい", WEAPON_SHOP, "weapon");
+    if (weaponScene) {
+      return weaponScene;
+    }
+    const armorScene = shopScene("ぼうぐや「いらっしゃい", ARMOR_SHOP, "armor");
+    if (armorScene) {
+      return armorScene;
+    }
+    if (sceneText.includes("くすりや「いらっしゃい")) {
+      const opts = [];
+      if (state.immunityCount < 3 && state.gold >= VACCINE_PRICE) {
+        opts.push(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
+      }
+      if (state.medicineCount < 3 && state.gold >= MEDICINE_PRICE) {
+        opts.push(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
+      }
+      opts.push("みせを でる");
+      return opts;
+    }
+  }
+  const options = [];
+  const add = (option) => {
+    if (options.length < 3 && !options.includes(option)) {
+      options.push(option);
+    }
+  };
+  const fill = () => {
+    add("つよさを みる");
+    if (state.location === "office") {
+      add("きろくを のこして じゅもんを きく");
+    }
+    add(state.location === "venue" ? "まもりのまちへ いく" : "あるいた みちを ふりかえる");
+  };
+  if (state.cleared) {
+    add("つよさを みせて");
+    add("ちょまどひめと はなす");
+    add("はじめから やりなおす");
+    return options;
+  }
+  if (state.inBattle) {
+    add("たたかう");
+    add("にげる");
+    if (state.medicineCount > 0) {
+      add("かぜぐすりを のむ");
+    } else {
+      add("つよさを みる");
+    }
+    return options;
+  }
+  if (state.hostAsking) {
+    add("はい");
+    add("いいえ");
+    add("だいまおうの はなしを もういちど きく");
+    return options;
+  }
+  if (state.infected && state.medicineCount > 0) {
+    add("かぜぐすりを のむ");
+  }
+  if (state.location === "venue") {
+    if (!state.hostGreeted) {
+      return ["だいじんと はなす"];
+    } else if (state.princessCarried) {
+      add("ちょまどひめを おおてまちじょうへ とどける");
+      add("つよさを みる");
+      add("まもりのまちへ よってから とどける");
+    } else {
+      add("まもりのまちへ いく");
+      add("ウイルスのすみかへ いそぐ");
+      if (state.hostTalkCount > 0 && state.hostTalkCount < 7) {
+        add("だいじんと はなす");
+      } else {
+        add("つよさを みる");
+      }
+    }
+  } else if (state.location === "office") {
+    if (state.infected) {
+      add("きゅうけいしつで やすむ（6G）");
+    }
+    for (const [name, item] of Object.entries(WEAPON_SHOP)) {
+      if (item.attack > state.weaponAttack && state.gold >= item.price) {
+        add(`ぶきやで ${name}を かう（${item.price}G）`);
+        break;
+      }
+    }
+    for (const [name, item] of Object.entries(ARMOR_SHOP)) {
+      if (item.defense > state.armorDefense && state.gold >= item.price) {
+        add(`ぼうぐやで ${name}を かう（${item.price}G）`);
+        break;
+      }
+    }
+    if (state.immunityCount === 0 && state.gold >= VACCINE_PRICE) {
+      add(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
+    }
+    if (state.medicineCount < 3 && state.gold >= MEDICINE_PRICE) {
+      add(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
+    }
+    if (options.length === 0) {
+      add("ぶきやを のぞく");
+      add("ぼうぐやを のぞく");
+    }
+    add("ウイルスのすみかへ いく");
+  } else {
+    if (state.princessCarried) {
+      add("おおてまちじょうへ もどる");
+      add("つよさを みる");
+      add("まもりのまちへ もどる");
+    } else if (state.bossDefeated && state.lairDepth >= 5) {
+      add("ちょまどひめに はなしかける");
+      add("つよさを みる");
+      add("まもりのまちへ もどる");
+    } else {
+      add("おくへ すすむ");
+      add("まもりのまちへ もどる");
+      if (state.infected && state.medicineCount === 0) {
+        add("まちで やすんで なおす");
+      } else {
+        add("つよさを みる");
+      }
+    }
+  }
+  fill();
+  return options.slice(0, 3);
+}
+
+const ENEMY_IMAGE_MAP = {
+  ウイルスりゅうし: "virus-particle",
+  せきしぶき: "cough-droplet",
+  へんいかぶ: "variant",
+  "へんいした ウイルスりゅうし": "mutated-virus-particle",
+  "へんいした せきしぶき": "mutated-cough-droplet",
+  "へんいした へんいかぶ": "mutated-variant",
+  "へんいかぶの おやだま": "variant-boss",
+  インフルだいまおう: "influenza-lord",
+};
+
+function pickImage(state, reply) {
+  const base = "/assets/quest";
+  if (reply.includes("＊＊ ゲームオーバー ＊＊")) {
+    return `${base}/characters/doctor.webp`;
+  }
+  if (state.cleared || state.cheatCleared) {
+    return `${base}/scenes/ending-celebration.webp`;
+  }
+  if (state.inBattle && state.enemy) {
+    if (state.enemy.boss && state.enemy.attack > 11) {
+      return `${base}/enemies/influenza-lord-mutated.webp`;
+    }
+    const file = ENEMY_IMAGE_MAP[state.enemy.name];
+    if (file) {
+      return `${base}/enemies/${file}.webp`;
+    }
+  }
+  if (state.hostAsking) {
+    return `${base}/enemies/influenza-lord.webp`;
+  }
+  if (state.princessCarried) {
+    return `${base}/characters/hero-carrying-princess.webp`;
+  }
+  if (state.location === "venue") {
+    return `${base}/locations/event-venue.webp`;
+  }
+  if (state.location === "office") {
+    return `${base}/locations/office-district.webp`;
+  }
+  if (state.lairDepth >= 5) {
+    return state.bossDefeated
+      ? `${base}/characters/princess.webp`
+      : `${base}/locations/boss-chamber.webp`;
+  }
+  if (state.lairDepth === 4) {
+    return `${base}/locations/healing-spring.webp`;
+  }
+  if (state.lairDepth === 2) {
+    return `${base}/locations/stone-tablet.webp`;
+  }
+  return `${base}/locations/virus-lair-entrance.webp`;
+}
+
+const PURCHASE_ACTIONS = new Set(["weapon_shop", "armor_shop", "pharmacy"]);
+
+export function routeDirectCommand(state, rawMessage) {
+  if (typeof rawMessage !== "string") {
+    return null;
+  }
+  const msg = rawMessage
+    .normalize("NFKC")
+    .replace(/（[^）]*）/g, "")
+    .replace(/[\s、。！!？?]/g, "");
+  if (!msg || msg.length > 40) {
+    return null;
+  }
+  if (state.inBattle) {
+    if (msg.includes("たたか") || msg.includes("こうげき")) return [{ action: "attack" }];
+    if (msg.includes("にげ")) return [{ action: "run" }];
+    if (msg.includes("かぜぐすり")) return [{ action: "medicine" }];
+    return null;
+  }
+  if (state.hostAsking) {
+    if (msg === "はい") return [{ action: "answer_host", answer: "はい" }];
+    if (msg === "いいえ") return [{ action: "answer_host", answer: "いいえ" }];
+    if (msg === "だいまおうのはなしをもういちどきく") return [{ action: "talk" }];
+  }
+  if (
+    msg === "はなす" ||
+    msg === "だいじんとはなす" ||
+    msg === "ちょまどひめとはなす" ||
+    msg === "ちょまどひめにはなしかける" ||
+    msg === "ちょまどひめにこえをかける"
+  ) {
+    return [{ action: "talk" }];
+  }
+  if (msg === "つよさをみる" || msg === "つよさをみせて") {
+    return [{ action: "status" }];
+  }
+  if (
+    msg === "まもりのまちへいく" ||
+    msg === "まもりのまちへもどる" ||
+    msg === "まもりのまちへよってからとどける"
+  ) {
+    return [{ action: "move", destination: "まもりのまち" }];
+  }
+  if (msg === "まちでやすんでなおす") {
+    return [{ action: "move", destination: "まもりのまち" }, { action: "rest" }];
+  }
+  if (msg === "おおてまちじょうへもどる") {
+    return [{ action: "move", destination: "おおてまちじょう" }];
+  }
+  if (msg === "ウイルスのすみかへいそぐ" || msg === "ウイルスのすみかへいく") {
+    return [{ action: "move", destination: "ウイルスのすみか" }];
+  }
+  if (msg === "ちょまどひめをおおてまちじょうへとどける" || msg === "おおてまちじょうへいく") {
+    const steps = [];
+    if (state.location !== "venue") {
+      steps.push({ action: "move", destination: "おおてまちじょう" });
+    }
+    if (state.princessCarried) {
+      steps.push({ action: "talk" });
+    }
+    return steps.length > 0 ? steps : [{ action: "talk" }];
+  }
+  if (msg === "おくへすすむ") {
+    return [{ action: "explore" }];
+  }
+  if (msg === "きゅうけいしつでやすむ") {
+    return [{ action: "rest" }];
+  }
+  if (msg === "きろくをのこしてじゅもんをきく") {
+    return [{ action: "clinic" }];
+  }
+  if (/^ぶきや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
+    return [{ action: "weapon_shop" }];
+  }
+  if (/^ぼうぐや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
+    return [{ action: "armor_shop" }];
+  }
+  if (/^くすりや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
+    return [{ action: "pharmacy" }];
+  }
+  if (msg === "みせをでる") {
+    return [{ action: "talk" }];
+  }
+  let match = msg.match(/^ぶきやで(.+)をかう$/);
+  if (match) {
+    return [{ action: "weapon_shop", item: match[1] }];
+  }
+  match = msg.match(/^ぼうぐやで(.+)をかう$/);
+  if (match) {
+    return [{ action: "armor_shop", item: match[1] }];
+  }
+  match = msg.match(/^くすりやで(.+)を(かう|うつ)$/);
+  if (match) {
+    return [{ action: "pharmacy", item: match[1] }];
+  }
+  return null;
+}
+
+export function composeGameReply(gameTexts, modelText, userMessage) {
+  const unique = [];
+  for (const text of gameTexts) {
+    if (text && !unique.includes(text)) {
+      unique.push(text);
+    }
+  }
+  const askedStatus =
+    typeof userMessage === "string" &&
+    /つよさ|ステータス|じょうたい|そうび|もちもの/.test(userMessage);
+  const nonStatus = unique.filter((text) => !text.startsWith("＊＊ つよさ ＊＊"));
+  const chosen = nonStatus.length > 0 ? nonStatus : askedStatus ? unique : [];
+  if (chosen.length > 0) {
+    return chosen.join("\n\n");
+  }
+  return modelText;
+}
+
+export function routeFuzzyCommand(state, rawMessage) {
+  if (typeof rawMessage !== "string") {
+    return null;
+  }
+  const spellForm = rawMessage
+    .normalize("NFKC")
+    .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+    .replace(/[\s「」『』、。・!！?？]/g, "");
+  if (spellForm.includes("てあらいうがいわくちん")) {
+    return [{ action: "fukkatsu_no_jumon", jumon: "てあらいうがいわくちん" }];
+  }
+  if (spellForm.includes("ぱんでみっく")) {
+    return [{ action: "cast_spell", spell: "ぱんでみっく" }];
+  }
+  if (spellForm.includes("ちょまど") && /となえ|じゅもん/.test(spellForm)) {
+    return [{ action: "cast_spell", spell: "ちょまど" }];
+  }
+  if (state.inBattle || state.hostAsking) {
+    return null;
+  }
+  if (state.princessCarried && !state.cleared && /とどけ/.test(spellForm)) {
+    const steps = [];
+    if (state.location !== "venue") {
+      steps.push({ action: "move", destination: "おおてまちじょう" });
+    }
+    steps.push({ action: "talk" });
+    return steps;
+  }
+  const moveIntent = /いく|いって|いこう|むか|もど|しゅっぱつ|いそ/.test(spellForm);
+  if (moveIntent) {
+    if (spellForm.includes("まもりのまち")) {
+      return [{ action: "move", destination: "まもりのまち" }];
+    }
+    if (spellForm.includes("ウイルスのすみか") || spellForm.includes("すみか")) {
+      return [{ action: "move", destination: "ウイルスのすみか" }];
+    }
+    if (spellForm.includes("おおてまちじょう")) {
+      return [{ action: "move", destination: "おおてまちじょう" }];
+    }
+  }
+  if (/おくへすすむ|おくへすすんで|おくへすすもう|さらにすすむ/.test(spellForm)) {
+    return [{ action: "explore" }];
+  }
+  const msg = rawMessage.normalize("NFKC");
+  const buyish = /かう|買|うつ|打つ|せっしゅ|ください|くれ|ほしい/.test(msg);
+  if (/かぜぐすり|くすりをのむ/.test(msg) && /のむ|飲/.test(msg)) {
+    return [{ action: "medicine" }];
+  }
+  if (state.location === "office" && buyish) {
+    for (const name of Object.keys(WEAPON_SHOP)) {
+      if (msg.includes(name)) {
+        return [{ action: "weapon_shop", item: name }];
+      }
+    }
+    for (const name of Object.keys(ARMOR_SHOP)) {
+      if (msg.includes(name)) {
+        return [{ action: "armor_shop", item: name }];
+      }
+    }
+    if (msg.includes("ワクチン")) {
+      return [{ action: "pharmacy", item: "ワクチン" }];
+    }
+    if (msg.includes("かぜぐすり")) {
+      return [{ action: "pharmacy", item: "かぜぐすり" }];
+    }
+  }
+  return null;
+}
+
+function playerAuthorizedPurchase(userMessage, item, prevAssistantText) {
+  if (typeof userMessage !== "string" || typeof item !== "string") {
+    return false;
+  }
+  const normalized = userMessage.replace(/\s/g, "");
+  if (normalized.includes(item.replace(/\s/g, ""))) {
+    return true;
+  }
+  if (
+    /^(はい|うん|かう|買う|おねがい)$/.test(normalized) &&
+    typeof prevAssistantText === "string" &&
+    prevAssistantText.includes(item)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+async function runGameAction(engine, input, userMessage, prevAssistantText) {
   const action = input?.action;
   if (action === "start_adventure") {
     return engine.handleStartAdventure();
@@ -90,11 +573,24 @@ async function runGameAction(engine, input) {
     return engine.handleNewGame({ confirmation: "NEW_GAME" });
   }
   if (performableActionNames.includes(action)) {
+    let item = typeof input.item === "string" ? input.item : undefined;
+    if (
+      item &&
+      PURCHASE_ACTIONS.has(action) &&
+      !playerAuthorizedPurchase(userMessage, item, prevAssistantText)
+    ) {
+      item = undefined;
+    }
     return engine.handlePerformAction({
       action,
       name: typeof input.name === "string" ? input.name : undefined,
-      destination: typeof input.destination === "string" ? input.destination : undefined,
-      item: typeof input.item === "string" ? input.item : undefined,
+      destination:
+        typeof input.destination === "string" && destinationNames.includes(input.destination)
+          ? input.destination
+          : typeof input.destination === "string"
+            ? destinationNames.find((name) => input.destination.includes(name))
+            : undefined,
+      item,
       spell: typeof input.spell === "string" ? input.spell : undefined,
       jumon: typeof input.jumon === "string" ? input.jumon : undefined,
       answer: input.answer === "はい" || input.answer === "いいえ" ? input.answer : undefined,
@@ -126,7 +622,91 @@ function trimHistory(messages) {
   messages.splice(0, start);
 }
 
-async function callModel(env, messages) {
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 529]);
+const FALLBACK_MODEL = "claude-sonnet-5";
+const OPENAI_DEFAULT_MODEL = "gpt-5.6-luna";
+
+export function hasOpenAIKey(env) {
+  return typeof env.OPENAI_API_KEY === "string" && env.OPENAI_API_KEY.length > 0;
+}
+
+export function hasAnthropicKey(env) {
+  return typeof env.ANTHROPIC_API_KEY === "string" && env.ANTHROPIC_API_KEY.length > 0;
+}
+
+export function toOpenAIMessages(messages) {
+  const out = [{ role: "system", content: SYSTEM_PROMPT }];
+  for (const message of messages) {
+    const blocks = Array.isArray(message.content)
+      ? message.content
+      : [{ type: "text", text: String(message.content ?? "") }];
+    if (message.role === "user") {
+      const texts = [];
+      for (const block of blocks) {
+        if (block.type === "text") {
+          texts.push(block.text);
+        } else if (block.type === "tool_result") {
+          const content = Array.isArray(block.content)
+            ? block.content
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("\n")
+            : String(block.content ?? "");
+          out.push({ role: "tool", tool_call_id: block.tool_use_id, content });
+        }
+      }
+      if (texts.length > 0) {
+        out.push({ role: "user", content: texts.join("\n") });
+      }
+    } else if (message.role === "assistant") {
+      const texts = blocks.filter((block) => block.type === "text").map((block) => block.text);
+      const toolCalls = blocks
+        .filter((block) => block.type === "tool_use")
+        .map((block) => ({
+          id: block.id,
+          type: "function",
+          function: { name: block.name, arguments: JSON.stringify(block.input ?? {}) },
+        }));
+      const entry = { role: "assistant", content: texts.length > 0 ? texts.join("\n") : null };
+      if (toolCalls.length > 0) {
+        entry.tool_calls = toolCalls;
+      }
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
+export function fromOpenAIResponse(payload) {
+  const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null;
+  const message = choice?.message ?? {};
+  const content = [];
+  if (typeof message.content === "string" && message.content.length > 0) {
+    content.push({ type: "text", text: message.content });
+  }
+  const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : [];
+  for (const call of toolCalls) {
+    let input = {};
+    try {
+      input = JSON.parse(call.function?.arguments || "{}");
+    } catch {}
+    content.push({ type: "tool_use", id: call.id, name: call.function?.name ?? "game", input });
+  }
+  const hasToolUse = content.some((block) => block.type === "tool_use");
+  return { content, stop_reason: hasToolUse ? "tool_use" : "end_turn" };
+}
+
+async function readModelError(response) {
+  let detail = "";
+  try {
+    detail = (await response.text()).slice(0, 300);
+  } catch {}
+  const error = new Error(`model http ${response.status} ${detail}`);
+  error.status = response.status;
+  return error;
+}
+
+async function callAnthropicOnce(env, messages, model) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -135,7 +715,7 @@ async function callModel(env, messages) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: typeof env.CHAT_MODEL === "string" && env.CHAT_MODEL ? env.CHAT_MODEL : DEFAULT_MODEL,
+      model,
       max_tokens: 800,
       system: SYSTEM_PROMPT,
       tools: [GAME_TOOL],
@@ -144,75 +724,305 @@ async function callModel(env, messages) {
     signal: AbortSignal.timeout(30000),
   });
   if (!response.ok) {
-    throw new Error(`model http ${response.status}`);
+    throw await readModelError(response);
   }
   return response.json();
 }
 
-export async function handleChat(request, env, ctx) {
-  if (request.method !== "POST") {
-    return json({ ok: false, error: "method_not_allowed" }, 405);
-  }
-  if (typeof env.ANTHROPIC_API_KEY !== "string" || env.ANTHROPIC_API_KEY.length === 0) {
-    return json(
+async function callOpenAIOnce(env, messages, model, withReasoningEffort = true) {
+  const body = {
+    model,
+    max_completion_tokens: 2000,
+    messages: toOpenAIMessages(messages),
+    tools: [
       {
-        ok: false,
-        error: "chat_disabled",
-        message: "ブラウザ版はいま準備中だよ。コネクタ経由で遊んでね。",
+        type: "function",
+        function: {
+          name: GAME_TOOL.name,
+          description: GAME_TOOL.description,
+          parameters: GAME_TOOL.input_schema,
+        },
       },
-      503,
-    );
+    ],
+  };
+  if (withReasoningEffort) {
+    body.reasoning_effort = "low";
+  }
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    if (response.status === 400 && withReasoningEffort) {
+      return callOpenAIOnce(env, messages, model, false);
+    }
+    throw await readModelError(response);
+  }
+  return fromOpenAIResponse(await response.json());
+}
+
+async function callModel(env, messages) {
+  const useOpenAI = hasOpenAIKey(env);
+  const primaryModel =
+    typeof env.CHAT_MODEL === "string" && env.CHAT_MODEL
+      ? env.CHAT_MODEL
+      : useOpenAI
+        ? OPENAI_DEFAULT_MODEL
+        : DEFAULT_MODEL;
+  const attempts = useOpenAI
+    ? [
+        { provider: "openai", model: primaryModel, delayMs: 0 },
+        { provider: "openai", model: primaryModel, delayMs: 1500 },
+        { provider: "openai", model: primaryModel, delayMs: 3000 },
+        ...(hasAnthropicKey(env)
+          ? [{ provider: "anthropic", model: DEFAULT_MODEL, delayMs: 2000 }]
+          : [{ provider: "openai", model: primaryModel, delayMs: 5000 }]),
+      ]
+    : [
+        { provider: "anthropic", model: primaryModel, delayMs: 0 },
+        { provider: "anthropic", model: primaryModel, delayMs: 1500 },
+        { provider: "anthropic", model: primaryModel, delayMs: 3000 },
+        { provider: "anthropic", model: FALLBACK_MODEL, delayMs: 2000 },
+      ];
+  let lastError = null;
+  for (const attempt of attempts) {
+    if (attempt.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, attempt.delayMs));
+    }
+    try {
+      if (attempt.provider === "openai") {
+        return await callOpenAIOnce(env, messages, attempt.model);
+      }
+      return await callAnthropicOnce(env, messages, attempt.model);
+    } catch (error) {
+      lastError = error;
+      if (!RETRYABLE_STATUSES.has(error?.status)) {
+        if (attempt.provider === "openai" && hasAnthropicKey(env)) {
+          console.error(
+            "openai call failed, falling back to anthropic:",
+            error instanceof Error ? error.message : String(error),
+          );
+          return callAnthropicOnce(env, messages, DEFAULT_MODEL);
+        }
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
+function rateLimitFailureResponse() {
+  return json(
+    { ok: false, error: "rate_limited", message: "すこし やすんでから ためすのだ。" },
+    429,
+  );
+}
+
+function serviceUnavailableResponse(message = "せかいが ふあんていだ。もういちど ためしてくれ。") {
+  return json({ ok: false, error: "service_unavailable", message }, 503);
+}
+
+function normalizeExplicitCommand(text) {
+  return text.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+}
+
+export function isExplicitNewGameCommand(message) {
+  return EXPLICIT_NEW_GAME_COMMANDS.has(normalizeExplicitCommand(message));
+}
+
+export async function readChatRequestEnvelope(request) {
+  const contentType = request.headers.get("content-type") ?? "";
+  const mediaType = contentType.split(";")[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return {
+      ok: false,
+      response: json(
+        {
+          ok: false,
+          error: "unsupported_media_type",
+          message: "Content-Type は application/json で おくるのだ。",
+        },
+        415,
+      ),
+    };
+  }
+  let bodyText;
+  try {
+    bodyText = await request.text();
+  } catch {
+    return { ok: false, response: json({ ok: false, error: "invalid_json" }, 400) };
+  }
+  if (new TextEncoder().encode(bodyText).byteLength > CHAT_BODY_LIMIT_BYTES) {
+    return {
+      ok: false,
+      response: json(
+        { ok: false, error: "payload_too_large", message: "ことばが ながすぎる。" },
+        413,
+      ),
+    };
   }
   let body;
   try {
-    body = await request.json();
+    body = JSON.parse(bodyText);
   } catch {
-    return json({ ok: false, error: "invalid_json" }, 400);
+    return { ok: false, response: json({ ok: false, error: "invalid_json" }, 400) };
   }
   const sessionId = typeof body?.sessionId === "string" ? body.sessionId : "";
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   if (!UUID_V4_PATTERN.test(sessionId)) {
-    return json({ ok: false, error: "invalid_session" }, 400);
+    return { ok: false, response: json({ ok: false, error: "invalid_session" }, 400) };
   }
   if (message.length === 0 || Array.from(message).length > MAX_MESSAGE_LENGTH) {
-    return json({ ok: false, error: "invalid_message" }, 400);
+    return { ok: false, response: json({ ok: false, error: "invalid_message" }, 400) };
   }
-  if (env.CHAT_RATE_LIMIT && typeof env.CHAT_RATE_LIMIT.limit === "function") {
-    const outcome = await env.CHAT_RATE_LIMIT.limit({ key: `chat:${sessionId}` });
-    if (!outcome?.success) {
-      return json(
-        { ok: false, error: "rate_limited", message: "すこし やすんでから ためしてね。" },
-        429,
-      );
-    }
-  }
-  if (!env.SESSIONS || typeof env.SESSIONS.get !== "function") {
-    return json({ ok: false, error: "service_unavailable" }, 503);
-  }
+  return { ok: true, value: { bodyText, sessionId, message } };
+}
 
-  const sessionKey = `chat:${sessionId}`;
+async function enforceChatRateLimits(env, request, sessionId) {
+  if (!env.CHAT_RATE_LIMIT) {
+    return null;
+  }
+  if (typeof env.CHAT_RATE_LIMIT.limit !== "function") {
+    return serviceUnavailableResponse();
+  }
+  let outcome;
+  try {
+    outcome = await env.CHAT_RATE_LIMIT.limit({ key: `chat:${sessionId}` });
+  } catch {
+    return serviceUnavailableResponse();
+  }
+  if (!outcome?.success) {
+    return rateLimitFailureResponse();
+  }
+  return null;
+}
+
+async function enforceModelRateLimit(env, sessionId) {
+  if (!env.CHAT_IP_RATE_LIMIT) {
+    return null;
+  }
+  if (typeof env.CHAT_IP_RATE_LIMIT.limit !== "function") {
+    return serviceUnavailableResponse();
+  }
+  let outcome;
+  try {
+    outcome = await env.CHAT_IP_RATE_LIMIT.limit({ key: `chat-model:${sessionId}` });
+  } catch {
+    return serviceUnavailableResponse();
+  }
+  if (!outcome?.success) {
+    return rateLimitFailureResponse();
+  }
+  return null;
+}
+
+async function publishSnapshot(env, playerId, snapshot, ctx) {
+  const write = writePlayerSnapshot(env, playerId, snapshot);
+  if (ctx && typeof ctx.waitUntil === "function") {
+    ctx.waitUntil(write);
+    return;
+  }
+  try {
+    await write;
+  } catch {}
+}
+
+export async function handleChat(request, env, ctx, sessionStore, requestEnvelope) {
+  if (request.method !== "POST") {
+    return json({ ok: false, error: "method_not_allowed" }, 405);
+  }
+  if (!hasOpenAIKey(env) && !hasAnthropicKey(env)) {
+    return json(
+      {
+        ok: false,
+        error: "chat_disabled",
+        message: "ブラウザばんは いま じゅんびちゅうだ。コネクタで あそんでくれ。",
+      },
+      503,
+    );
+  }
+  if (
+    !sessionStore ||
+    typeof sessionStore.read !== "function" ||
+    typeof sessionStore.write !== "function"
+  ) {
+    return serviceUnavailableResponse();
+  }
+  const envelope = requestEnvelope ?? (await readChatRequestEnvelope(request));
+  if (!envelope.ok) {
+    return envelope.response;
+  }
+  const { sessionId, message } = envelope.value;
+  const rateLimitError = await enforceChatRateLimits(env, request, sessionId);
+  if (rateLimitError) {
+    return rateLimitError;
+  }
   let session = null;
   try {
-    session = await env.SESSIONS.get(sessionKey, "json");
+    session = await sessionStore.read(sessionId);
   } catch {
-    session = null;
+    return serviceUnavailableResponse();
   }
   const playerId =
     session && typeof session.playerId === "string" && UUID_V4_PATTERN.test(session.playerId)
       ? session.playerId
       : crypto.randomUUID();
-  const turns = session && Number.isInteger(session.turns) ? session.turns : 0;
+  const turns =
+    session && Number.isInteger(session.turns) && session.turns >= 0 ? session.turns : 0;
+  const wantsNewGame = isExplicitNewGameCommand(message);
+  if (wantsNewGame) {
+    const engine = createEngine({ state: createInitialState(), gameLog: [] }, { report: () => {} });
+    const intro = engine.handleStartAdventure();
+    const save = {
+      version: 1,
+      ...engine.state,
+      gameLog: [...engine.gameLog],
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      await sessionStore.write(sessionId, { playerId, turns: 0, messages: [], save });
+    } catch {
+      return serviceUnavailableResponse();
+    }
+    await publishSnapshot(env, playerId, engine.snapshot(), ctx);
+    return json({
+      ok: true,
+      reply: "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
+      status: engine.statusText(),
+      suggestions: buildSuggestions(engine.state),
+      needsName: true,
+      image: pickImage(engine.state, ""),
+      hud: {
+        name: engine.state.heroName,
+        level: engine.state.level,
+        hp: engine.state.hp,
+        maxHp: engine.state.maxHp,
+        gold: engine.state.gold,
+        medicine: engine.state.medicineCount,
+        infected: engine.state.infected,
+        weapon: engine.state.weapon,
+        armor: engine.state.armor,
+      },
+      remainingTurns: MAX_USER_TURNS,
+    });
+  }
   if (turns >= MAX_USER_TURNS) {
     return json(
       {
         ok: false,
         error: "session_exhausted",
-        message: "この ぼうけんは ここまでだ。また こんど あそんでね。",
+        message:
+          "この ぼうけんは ここまでだ。「はじめから やりなおす」と いえば あたらしい ぼうけんに でられるぞ。",
       },
       429,
     );
   }
-  const messages = session && Array.isArray(session.messages) ? session.messages : [];
+  const messages = session && Array.isArray(session.messages) ? [...session.messages] : [];
   const loaded = loadSessionState(session);
 
   let latestSnapshot = null;
@@ -220,11 +1030,210 @@ export async function handleChat(request, env, ctx) {
     report: (snapshot) => {
       latestSnapshot = snapshot;
     },
+    isNameTaken: (name) => isHeroNameTaken(env, name, playerId),
   });
+
+  if (
+    engine.state.heroName !== heroPlaceholderName &&
+    message.replace(/\s/g, "").includes("爆速RTA")
+  ) {
+    const rta = engine.rtaClear();
+    const save = {
+      version: 1,
+      ...engine.state,
+      gameLog: [...engine.gameLog],
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      await sessionStore.write(sessionId, { playerId, turns: turns + 1, messages: [], save });
+    } catch {
+      return serviceUnavailableResponse();
+    }
+    await publishSnapshot(env, playerId, engine.snapshot(), ctx);
+    return json({
+      ok: true,
+      reply: toolResultText(rta),
+      status: engine.statusText(),
+      cleared: engine.state.cleared === true,
+      suggestions: buildSuggestions(engine.state),
+      image: pickImage(engine.state, toolResultText(rta)),
+      hud: {
+        name: engine.state.heroName,
+        level: engine.state.level,
+        hp: engine.state.hp,
+        maxHp: engine.state.maxHp,
+        gold: engine.state.gold,
+        medicine: engine.state.medicineCount,
+        immunity: engine.state.immunityCount,
+        infected: engine.state.infected,
+        weapon: engine.state.weapon,
+        armor: engine.state.armor,
+        enemy: null,
+      },
+      remainingTurns: MAX_USER_TURNS - (turns + 1),
+    });
+  }
+
+  if (engine.state.heroName === heroPlaceholderName && !engine.state.cleared) {
+    const bracket = message.match(/「([^「」]{1,24})」/);
+    const plain = message.match(/なまえは\s*([^\s。、!！?？]{1,24})/);
+    const rawName = bracket ? bracket[1] : plain ? plain[1] : null;
+    if (rawName) {
+      let nameResult;
+      try {
+        nameResult = await engine.handleNameHero({ name: rawName });
+      } catch {
+        nameResult = engine.errorText("その なまえは つかえない。べつの なまえを たのむ。");
+      }
+      const named = engine.state.heroName !== heroPlaceholderName;
+      const nameReply = named
+        ? toolResultText(nameResult) +
+          "\n\nおおてまちじょうの だいじんが そなたを まっている。はなしを きいてみよう。"
+        : toolResultText(nameResult);
+      messages.push({ role: "user", content: [{ type: "text", text: message }] });
+      messages.push({ role: "assistant", content: [{ type: "text", text: nameReply }] });
+      trimHistory(messages);
+      const nameSave = {
+        version: 1,
+        ...engine.state,
+        gameLog: [...engine.gameLog],
+        savedAt: new Date().toISOString(),
+      };
+      try {
+        await sessionStore.write(sessionId, {
+          playerId,
+          turns: turns + 1,
+          messages,
+          save: nameSave,
+        });
+      } catch {
+        return serviceUnavailableResponse();
+      }
+      if (latestSnapshot) {
+        await publishSnapshot(env, playerId, latestSnapshot, ctx);
+      }
+      return json({
+        ok: true,
+        reply: nameReply,
+        status: engine.statusText(),
+        suggestions: named ? buildSuggestions(engine.state) : [],
+        needsName: !named,
+        image: pickImage(engine.state, nameReply),
+        hud: {
+          name: engine.state.heroName,
+          level: engine.state.level,
+          hp: engine.state.hp,
+          maxHp: engine.state.maxHp,
+          gold: engine.state.gold,
+          medicine: engine.state.medicineCount,
+          immunity: engine.state.immunityCount,
+          infected: engine.state.infected,
+          weapon: engine.state.weapon,
+          armor: engine.state.armor,
+          enemy: null,
+        },
+        remainingTurns: MAX_USER_TURNS - (turns + 1),
+      });
+    }
+  }
+
+  const directSteps =
+    engine.state.heroName !== heroPlaceholderName
+      ? (routeDirectCommand(engine.state, message) ?? routeFuzzyCommand(engine.state, message))
+      : null;
+  if (directSteps && directSteps.length > 0) {
+    const directTexts = [];
+    for (const step of directSteps) {
+      let output;
+      try {
+        output = await engine.handlePerformAction(step);
+      } catch {
+        output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
+      }
+      directTexts.push(toolResultText(output));
+      if (output.isError === true) {
+        break;
+      }
+    }
+    const directReply = directTexts.join("\n\n");
+    messages.push({ role: "user", content: [{ type: "text", text: message }] });
+    messages.push({ role: "assistant", content: [{ type: "text", text: directReply }] });
+    trimHistory(messages);
+    const directSave = {
+      version: 1,
+      ...engine.state,
+      gameLog: [...engine.gameLog],
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      await sessionStore.write(sessionId, {
+        playerId,
+        turns: turns + 1,
+        messages,
+        save: directSave,
+      });
+    } catch {
+      return serviceUnavailableResponse();
+    }
+    if (latestSnapshot) {
+      await publishSnapshot(env, playerId, latestSnapshot, ctx);
+    }
+    return json({
+      ok: true,
+      reply: directReply,
+      status: engine.statusText(),
+      suggestions: buildSuggestions(engine.state, directReply),
+      needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
+      gameOver: directTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
+      cleared: engine.state.cleared === true,
+      image: pickImage(engine.state, directReply),
+      hud: {
+        name: engine.state.heroName,
+        level: engine.state.level,
+        hp: engine.state.hp,
+        maxHp: engine.state.maxHp,
+        gold: engine.state.gold,
+        medicine: engine.state.medicineCount,
+        immunity: engine.state.immunityCount,
+        infected: engine.state.infected,
+        weapon: engine.state.weapon,
+        armor: engine.state.armor,
+        enemy:
+          engine.state.inBattle && engine.state.enemy
+            ? {
+                name: engine.state.enemy.name,
+                hp: engine.state.enemy.hp,
+                maxHp: engine.state.enemy.maxHp,
+              }
+            : null,
+      },
+      remainingTurns: MAX_USER_TURNS - (turns + 1),
+    });
+  }
+
+  const modelRateLimitError = await enforceModelRateLimit(env, sessionId);
+  if (modelRateLimitError) {
+    return modelRateLimitError;
+  }
+
+  let prevAssistantText = "";
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "assistant") {
+      const blocks = Array.isArray(messages[index].content) ? messages[index].content : [];
+      prevAssistantText = blocks
+        .filter((block) => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+      break;
+    }
+  }
 
   messages.push({ role: "user", content: [{ type: "text", text: message }] });
 
   let replyText = "";
+  let lastToolOutputText = "";
+  let exhaustedWithPendingToolResult = false;
+  const gameTexts = [];
   try {
     for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
       const result = await callModel(env, messages);
@@ -241,25 +1250,36 @@ export async function handleChat(request, env, ctx) {
         break;
       }
       const toolResults = [];
+      const toolOutputParts = [];
       for (const toolUse of toolUses) {
         let output;
         try {
-          output = await runGameAction(engine, toolUse.input ?? {});
+          output = await runGameAction(engine, toolUse.input ?? {}, message, prevAssistantText);
         } catch {
           output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
+        }
+        const outputText = toolResultText(output);
+        toolOutputParts.push(outputText);
+        if (output.isError !== true) {
+          gameTexts.push(outputText);
         }
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,
-          content: toolResultText(output),
+          content: outputText,
           is_error: output.isError === true,
         });
       }
+      lastToolOutputText = toolOutputParts.join("\n\n");
+      if (loop === MAX_TOOL_LOOPS - 1) {
+        exhaustedWithPendingToolResult = true;
+      }
       messages.push({ role: "user", content: toolResults });
     }
-  } catch {
+  } catch (error) {
+    console.error("chat model failure:", error instanceof Error ? error.message : String(error));
     return json(
-      { ok: false, error: "model_error", message: "つうしんが みだれた。もういちど ためしてね。" },
+      { ok: false, error: "model_error", message: "つうしんが みだれた。もういちど ためすのだ。" },
       502,
     );
   }
@@ -279,22 +1299,49 @@ export async function handleChat(request, env, ctx) {
     save,
   };
   try {
-    await env.SESSIONS.put(sessionKey, JSON.stringify(nextSession), {
-      expirationTtl: SESSION_TTL_SECONDS,
-    });
-  } catch {}
-
-  if (latestSnapshot) {
-    const write = writePlayerSnapshot(env, playerId, latestSnapshot);
-    if (ctx && typeof ctx.waitUntil === "function") {
-      ctx.waitUntil(write);
-    }
+    await sessionStore.write(sessionId, nextSession);
+  } catch {
+    return serviceUnavailableResponse();
   }
 
+  if (latestSnapshot) {
+    await publishSnapshot(env, playerId, latestSnapshot, ctx);
+  }
+
+  const composedReply = composeGameReply(gameTexts, replyText, message);
   return json({
     ok: true,
-    reply: replyText || "（しずかな かぜが ふいている……もういちど はなしかけてみよう）",
+    reply:
+      composedReply ||
+      (exhaustedWithPendingToolResult && lastToolOutputText
+        ? lastToolOutputText
+        : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）"),
     status: engine.statusText(),
+    suggestions: buildSuggestions(engine.state, composedReply || replyText),
+    needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
+    gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
+    cleared: engine.state.cleared === true,
+    image: pickImage(engine.state, composedReply || replyText),
+    hud: {
+      name: engine.state.heroName,
+      level: engine.state.level,
+      hp: engine.state.hp,
+      maxHp: engine.state.maxHp,
+      gold: engine.state.gold,
+      medicine: engine.state.medicineCount,
+      immunity: engine.state.immunityCount,
+      infected: engine.state.infected,
+      weapon: engine.state.weapon,
+      armor: engine.state.armor,
+      enemy:
+        engine.state.inBattle && engine.state.enemy
+          ? {
+              name: engine.state.enemy.name,
+              hp: engine.state.enemy.hp,
+              maxHp: engine.state.enemy.maxHp,
+            }
+          : null,
+    },
     remainingTurns: MAX_USER_TURNS - (turns + 1),
   });
 }
@@ -309,192 +1356,929 @@ const PLAY_PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>インフルクエスト ブラウザ版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
+    --white: #f8f8f8;
     --gold: #ffd44a;
     --sky: #85d6ff;
     --mint: #7ee2ad;
-    --rose: #ff9e87;
-    --muted: #a9b3c2;
-    --line: rgba(255, 255, 255, 0.16);
+    --rose: #ff8a70;
+    --dim: #9aa3b2;
+    --virus: #58d858;
+    --virus-dark: #17671f;
   }
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
   html {
-    background:
-      radial-gradient(circle at top, rgba(133, 214, 255, 0.14), transparent 34%),
-      linear-gradient(180deg, #08101b 0%, #05060a 100%);
+    background: #000;
   }
   body {
     margin: 0;
-    min-height: 100vh;
-    color: #f6f6f2;
+    height: 100dvh;
+    background: #000;
+    color: var(--white);
     font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
-    line-height: 1.8;
-    padding: 20px 12px 32px;
+    line-height: 1.85;
     display: flex;
     justify-content: center;
+    padding: 12px 10px;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(transparent 0 2px, rgba(255, 255, 255, 0.03) 2px 4px);
+    background-size: 100% 4px;
+    z-index: 9;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
   .shell {
     width: 100%;
-    max-width: 720px;
+    max-width: 680px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
+  }
+  .dqwin {
+    position: relative;
+    background: #000;
+    border: 3px solid var(--white);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .dqwin::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--white);
+    border-radius: 6px;
+    pointer-events: none;
+  }
+  .dqwin[data-title]::after {
+    content: attr(data-title);
+    position: absolute;
+    top: -14px;
+    left: 16px;
+    background: #000;
+    padding: 0 8px;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+  }
+  header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .titlerow {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
   }
   h1 {
     margin: 0;
-    font-size: clamp(22px, 5vw, 32px);
-    letter-spacing: 0.12em;
+    font-size: clamp(17px, 4.4vw, 28px);
+    letter-spacing: 0.1em;
     color: var(--gold);
-    text-align: center;
-    text-shadow: 3px 3px 0 rgba(6, 48, 74, 0.95);
+    text-shadow: 3px 3px 0 #7a1f1f;
+    white-space: nowrap;
   }
-  .note {
+  .hud {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 18px;
+    padding: 8px 14px;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+  }
+  .hud[hidden],
+  .scene[hidden] {
+    display: none;
+  }
+  .hud span {
+    white-space: nowrap;
+  }
+  .hud .gold {
+    color: var(--gold);
+  }
+  .hud .flu {
+    color: var(--rose);
+  }
+  .scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px;
+  }
+  .enemy-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    width: min(100%, 360px);
+  }
+  .enemy-bar[hidden] {
+    display: none;
+  }
+  .enemy-bar .gauge {
+    flex: 1;
+    height: 10px;
+    border: 1px solid var(--white);
+    border-radius: 5px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .enemy-bar .gauge i {
+    display: block;
+    height: 100%;
+    background: var(--rose);
+    transition: width 0.4s steps(8);
+  }
+  .enemy-bar span {
+    white-space: nowrap;
+  }
+  .scene img {
+    height: 140px;
+    max-width: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+  @media (max-height: 700px) {
+    .scene img {
+      height: 96px;
+    }
+  }
+  .boardlink {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
     margin: 0;
-    text-align: center;
-    color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
   }
-  .note a { color: var(--sky); }
+  .boardlink a {
+    display: inline-block;
+    color: var(--sky);
+    text-decoration: none;
+    white-space: nowrap;
+    font-size: 20px;
+    padding: 3px 6px;
+    line-height: 1;
+  }
+  .sprite {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    transform: scale(0.72);
+    transform-origin: center;
+    animation: bob 1.2s steps(2) infinite;
+  }
+  .sprite .px {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    box-shadow:
+      25px 0 var(--virus-dark),
+      25px 5px var(--virus-dark),
+      5px 5px var(--virus-dark),
+      45px 5px var(--virus-dark),
+      10px 10px var(--virus-dark),
+      20px 10px var(--virus-dark), 25px 10px var(--virus-dark), 30px 10px var(--virus-dark),
+      40px 10px var(--virus-dark),
+      15px 15px var(--virus-dark),
+      20px 15px var(--virus), 25px 15px var(--virus), 30px 15px var(--virus),
+      35px 15px var(--virus-dark),
+      10px 20px var(--virus-dark),
+      15px 20px var(--virus),
+      20px 20px #000,
+      25px 20px var(--virus),
+      30px 20px #000,
+      35px 20px var(--virus),
+      40px 20px var(--virus-dark),
+      0 25px var(--virus-dark), 5px 25px var(--virus-dark),
+      10px 25px var(--virus), 15px 25px var(--virus), 20px 25px var(--virus), 25px 25px var(--virus), 30px 25px var(--virus), 35px 25px var(--virus), 40px 25px var(--virus),
+      45px 25px var(--virus-dark), 50px 25px var(--virus-dark),
+      10px 30px var(--virus-dark),
+      15px 30px var(--virus),
+      20px 30px #000, 25px 30px #000, 30px 30px #000,
+      35px 30px var(--virus),
+      40px 30px var(--virus-dark),
+      15px 35px var(--virus-dark),
+      20px 35px var(--virus), 25px 35px var(--virus), 30px 35px var(--virus),
+      35px 35px var(--virus-dark),
+      10px 40px var(--virus-dark),
+      20px 40px var(--virus-dark), 25px 40px var(--virus-dark), 30px 40px var(--virus-dark),
+      40px 40px var(--virus-dark),
+      5px 45px var(--virus-dark),
+      25px 45px var(--virus-dark),
+      45px 45px var(--virus-dark),
+      25px 50px var(--virus-dark);
+  }
+  @keyframes bob {
+    50% {
+      transform: scale(0.72) translateY(4px);
+    }
+  }
+  .logwrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    padding: 14px 8px 14px 16px;
+  }
   .log {
-    background: #000;
-    border: 4px double rgba(255, 255, 255, 0.72);
-    border-radius: 14px;
-    padding: 14px;
-    min-height: 320px;
-    max-height: 60vh;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    scroll-behavior: smooth;
+    padding-right: 8px;
   }
   .msg {
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 14px;
-    border-radius: 10px;
-    padding: 8px 12px;
-    max-width: 96%;
+    max-width: 100%;
   }
   .msg.player {
     align-self: flex-end;
-    background: rgba(133, 214, 255, 0.12);
-    border: 1px solid rgba(133, 214, 255, 0.4);
+    color: var(--sky);
+    text-align: right;
   }
-  .msg.gm {
-    align-self: flex-start;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--line);
+  .msg.player::before {
+    content: "＞ ";
   }
   .msg.sys {
     align-self: center;
-    color: var(--muted);
-    font-size: 12px;
+    color: var(--dim);
+    font-size: 13px;
+    text-align: center;
+  }
+  .msg.gameover {
+    align-self: center;
+    color: var(--rose);
+    font-size: 16px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    border: 2px solid var(--rose);
+    border-radius: 8px;
+    padding: 6px 16px;
+  }
+  .msg.gm .cursor {
+    color: var(--white);
+    animation: blink 0.9s steps(1) infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+  .sharerow {
+    align-self: center;
+  }
+  .sharerow a {
+    display: inline-block;
+    font-size: 14px;
+    color: #05060a;
+    background: var(--gold);
+    border-radius: 8px;
+    padding: 8px 16px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .commands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 16px;
+    padding: 12px 16px;
+    min-height: 52px;
+  }
+  .commands button {
+    font: inherit;
+    font-size: 14px;
+    color: var(--white);
+    background: transparent;
     border: none;
+    text-align: left;
+    padding: 4px 4px 4px 20px;
+    position: relative;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .commands button::before {
+    content: "▶";
+    position: absolute;
+    left: 0;
+    opacity: 0;
+  }
+  .commands button:hover::before,
+  .commands button:focus-visible::before {
+    opacity: 1;
+  }
+  .commands button:disabled {
+    color: var(--dim);
+    cursor: wait;
+  }
+  .commands .hint {
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .commands button.misc {
+    color: var(--dim);
+    font-size: 13px;
+  }
+  .composer[hidden] {
+    display: none;
+  }
+  .credits {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: #000;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .credits-inner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: clamp(14px, 3.6vw, 20px);
+    line-height: 2.4;
+    letter-spacing: 0.14em;
+    white-space: pre-line;
+    animation: credits-roll 36s linear forwards;
+  }
+  .credits-inner .credits-title {
+    font-size: clamp(22px, 6vw, 34px);
+    color: var(--gold);
+    letter-spacing: 0.2em;
+  }
+  .credits-hint {
+    position: absolute;
+    bottom: 10px;
+    right: 14px;
+    color: #888;
+    font-size: 11px;
+  }
+  @keyframes credits-roll {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-260vh);
+    }
   }
   .composer {
     display: flex;
-    gap: 8px;
+    gap: 10px;
+    align-items: center;
   }
   .composer input {
     flex: 1;
+    min-width: 0;
     font: inherit;
     font-size: 16px;
     color: inherit;
-    background: rgba(0, 0, 0, 0.5);
-    border: 2px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 12px;
+    background: transparent;
+    border: none;
+    padding: 6px 4px;
   }
   .composer input:focus {
     outline: none;
-    border-color: var(--sky);
+  }
+  .composer input::placeholder {
+    color: var(--dim);
+  }
+  .composer input:disabled {
+    color: var(--dim);
   }
   .composer button {
+    flex: none;
     font: inherit;
-    font-size: 15px;
-    color: #05060a;
-    background: var(--gold);
+    font-size: 14px;
+    color: var(--gold);
+    background: transparent;
     border: none;
-    border-radius: 10px;
-    padding: 10px 18px;
     cursor: pointer;
+    letter-spacing: 0.1em;
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .composer button::before {
+    content: "▶ ";
   }
   .composer button:disabled {
-    opacity: 0.5;
+    color: var(--dim);
     cursor: wait;
   }
-  .hints {
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.92);
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 20;
+  }
+  .overlay[hidden] {
+    display: none;
+  }
+  .namebox {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .namebox .dqwin {
+    padding: 16px;
+  }
+  .name-display {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    font-size: 22px;
+    letter-spacing: 0.1em;
+    min-height: 40px;
+  }
+  .name-display .slot {
+    width: 34px;
+    height: 38px;
+    border-bottom: 2px solid var(--white);
+    display: flex;
+    align-items: center;
     justify-content: center;
   }
-  .hints button {
+  .name-display .slot.active {
+    border-bottom-color: var(--gold);
+  }
+  .kana {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .kana button {
     font: inherit;
-    font-size: 12px;
-    color: var(--sky);
+    font-size: 16px;
+    color: var(--white);
     background: transparent;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 4px 10px;
+    border: none;
+    padding: 5px 0;
     cursor: pointer;
+    border-radius: 6px;
+  }
+  .kana button:hover,
+  .kana button:focus-visible {
+    background: rgba(255, 255, 255, 0.14);
+    outline: none;
+  }
+  .name-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 4px;
+  }
+  .name-actions button {
+    font: inherit;
+    font-size: 15px;
+    color: var(--white);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  .name-actions button::before {
+    content: "▶ ";
+    color: var(--gold);
+  }
+  .name-actions .ok {
+    color: var(--gold);
+  }
+  .name-actions button:disabled {
+    color: var(--dim);
+    cursor: default;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sprite,
+    .msg.gm .cursor {
+      animation: none;
+    }
+    .log {
+      scroll-behavior: auto;
+    }
   }
 </style>
 </head>
 <body>
-<div class="shell">
-  <h1>インフルクエスト</h1>
-  <p class="note">ブラウザ版だよ。AI ゲームマスターに話しかけてね。<a href="/">会場ボードはこちら</a></p>
-  <div class="log" id="log"></div>
-  <div class="hints" id="hints">
-    <button type="button" data-text="ぼうけんをはじめて">ぼうけんをはじめて</button>
-    <button type="button" data-text="はなす">はなす</button>
-    <button type="button" data-text="つよさをみせて">つよさをみせて</button>
+<div class="shell" id="app-shell">
+  <header>
+    <div class="titlerow">
+      <div class="sprite" aria-hidden="true"><i class="px"></i></div>
+      <h1>インフルクエスト</h1>
+      <div class="sprite" aria-hidden="true"><i class="px"></i></div>
+      <p class="boardlink"><a href="/" title="かいじょうボード" aria-label="かいじょうボード">🪧</a></p>
+    </div>
+  </header>
+  <div class="dqwin hud" id="hud" hidden></div>
+  <div class="dqwin scene" id="scene" hidden>
+    <img id="scene-img" alt="げんざいの けしき">
+    <div class="enemy-bar" id="enemy-bar" hidden>
+      <span id="enemy-name"></span>
+      <div class="gauge"><i id="enemy-gauge"></i></div>
+      <span id="enemy-hp"></span>
+    </div>
   </div>
-  <form class="composer" id="composer">
-    <input id="input" type="text" maxlength="500" placeholder="ここに にゅうりょく（れい: ぼうけんをはじめて）" autocomplete="off">
+  <div class="dqwin logwrap" data-title="― メッセージ ―"><div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions text"></div></div>
+  <div class="dqwin commands" id="hints" data-title="― コマンド ―" aria-live="polite" aria-atomic="true"></div>
+  <form class="dqwin composer" id="composer" data-title="― にゅうりょく ―" aria-labelledby="input-label" hidden>
+    <label class="sr-only" id="input-label" for="input">コマンドを いれる</label>
+    <span class="sr-only" id="input-help">じゆうに かいて おくる</span>
+    <input id="input" type="text" maxlength="500" placeholder="じゆうに にゅうりょく" autocomplete="off" aria-describedby="input-help">
     <button id="send" type="submit">おくる</button>
   </form>
 </div>
+<div class="overlay" id="name-overlay" hidden aria-hidden="true">
+  <div class="namebox">
+    <div class="dqwin" role="dialog" aria-modal="true" aria-labelledby="name-dialog-title" aria-describedby="name-dialog-help" data-title="― なまえを つけて ください ―">
+      <p class="sr-only" id="name-dialog-title">ゆうしゃの なまえを つける</p>
+      <p class="sr-only" id="name-dialog-help">かなを えらんで なまえを つくり、けってい を おす</p>
+      <div class="name-display" id="name-display" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div class="kana" id="kana"></div>
+      <div class="name-actions">
+        <button type="button" id="name-back">もどす</button>
+        <button type="button" id="name-ok" class="ok">けってい</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="sr-only" id="announce" aria-live="polite" aria-atomic="true"></div>
 <script>
   const log = document.getElementById("log");
+  const shell = document.getElementById("app-shell");
   const composer = document.getElementById("composer");
   const input = document.getElementById("input");
   const send = document.getElementById("send");
   const hints = document.getElementById("hints");
-  const storageKey = "influenza-quest-session";
+  const overlay = document.getElementById("name-overlay");
+  const nameDisplay = document.getElementById("name-display");
+  const kana = document.getElementById("kana");
+  const nameBack = document.getElementById("name-back");
+  const nameOk = document.getElementById("name-ok");
+  const announce = document.getElementById("announce");
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const sessionKey = "influ-quest-session";
+  const nameKey = "influ-quest-name";
+  let previousFocus = null;
+  let overlayOpen = false;
+  let typingQueue = Promise.resolve();
   let sessionId = "";
   try {
-    sessionId = localStorage.getItem(storageKey) || "";
+    sessionId = localStorage.getItem(sessionKey) || "";
   } catch {}
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
     sessionId = crypto.randomUUID();
     try {
-      localStorage.setItem(storageKey, sessionId);
+      localStorage.setItem(sessionKey, sessionId);
     } catch {}
   }
+  const scrollDown = () => {
+    log.scrollTop = log.scrollHeight;
+  };
+  const announceText = (text) => {
+    announce.textContent = "";
+    window.setTimeout(() => {
+      announce.textContent = text;
+    }, 0);
+  };
   const addMessage = (cls, text) => {
     const div = document.createElement("div");
     div.className = "msg " + cls;
     div.textContent = text;
     log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
+    scrollDown();
+    if (cls === "sys" || cls === "gameover") {
+      announceText(text);
+    }
     return div;
   };
-  addMessage("sys", "インフルだいまおうに さらわれた ちょまどひめを たすけだそう。");
-  addMessage("gm", "ゲームマスター「ようこそ、ゆうしゃよ。『ぼうけんをはじめて』と はなしかけてくれ。」");
+  let creditsShown = false;
+  let wasCleared = false;
+  const showCredits = (playerName) => {
+    if (creditsShown || document.querySelector(".credits")) {
+      return;
+    }
+    creditsShown = true;
+    const overlayEl = document.createElement("div");
+    overlayEl.className = "credits";
+    const inner = document.createElement("div");
+    inner.className = "credits-inner";
+    const title = document.createElement("div");
+    title.className = "credits-title";
+    title.textContent = "インフルクエスト";
+    const body = document.createElement("div");
+    body.textContent = [
+      "",
+      "そして せかいに あさが きた",
+      "",
+      "",
+      "しゅえん",
+      "ゆうしゃ " + (playerName || "そなた"),
+      "",
+      "とくべつしゅつえん",
+      "ちょまどひめ",
+      "",
+      "てき",
+      "インフルだいまおう",
+      "へんいかぶの おやだま",
+      "ウイルスりゅうし たち",
+      "",
+      "ぶたい",
+      "おおてまちじょう",
+      "まもりのまち",
+      "ウイルスのすみか",
+      "",
+      "きゃくほん・しんこう",
+      "ゲームマスター",
+      "",
+      "Presented at AI Dev Day 2026",
+      "",
+      "",
+      "てあらい うがい よぼうせっしゅ",
+      "",
+      "おだいじに。",
+      "",
+      "",
+      "THE END",
+    ].join("\n");
+    inner.appendChild(title);
+    inner.appendChild(body);
+    const hint = document.createElement("div");
+    hint.className = "credits-hint";
+    hint.textContent = "タップで とじる";
+    overlayEl.appendChild(inner);
+    overlayEl.appendChild(hint);
+    overlayEl.addEventListener("click", () => {
+      overlayEl.remove();
+    });
+    inner.addEventListener("animationend", () => {
+      window.setTimeout(() => overlayEl.remove(), 1500);
+    });
+    document.body.appendChild(overlayEl);
+  };
+  const addShareButton = (url) => {
+    const div = document.createElement("div");
+    div.className = "sharerow";
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "▶ Xで じまんする";
+    div.appendChild(link);
+    log.appendChild(div);
+    scrollDown();
+  };
+  const typewrite = (text) =>
+    new Promise((resolve) => {
+      const div = document.createElement("div");
+      div.className = "msg gm";
+      const body = document.createElement("span");
+      const cursor = document.createElement("span");
+      cursor.className = "cursor";
+      cursor.textContent = " ▼";
+      div.appendChild(body);
+      div.appendChild(cursor);
+      log.appendChild(div);
+      const chars = Array.from(text);
+      if (prefersReducedMotion.matches) {
+        body.textContent = text;
+        cursor.remove();
+        scrollDown();
+        resolve();
+        return;
+      }
+      let index = 0;
+      const step = () => {
+        index += 3;
+        body.textContent = chars.slice(0, index).join("");
+        scrollDown();
+        if (index < chars.length) {
+          window.setTimeout(step, 24);
+          return;
+        }
+        window.setTimeout(() => {
+          cursor.remove();
+          resolve();
+        }, 240);
+      };
+      step();
+    });
+  const queueTypewrite = (text) => {
+    typingQueue = typingQueue.then(() => typewrite(text));
+    return typingQueue;
+  };
+  const scene = document.getElementById("scene");
+  const sceneImg = document.getElementById("scene-img");
+  const enemyBar = document.getElementById("enemy-bar");
+  const enemyName = document.getElementById("enemy-name");
+  const enemyGauge = document.getElementById("enemy-gauge");
+  const enemyHp = document.getElementById("enemy-hp");
+  const updateEnemy = (enemy) => {
+    if (!enemy || typeof enemy.hp !== "number" || typeof enemy.maxHp !== "number" || enemy.maxHp <= 0) {
+      enemyBar.hidden = true;
+      return;
+    }
+    enemyBar.hidden = false;
+    enemyName.textContent = enemy.name;
+    enemyHp.textContent = enemy.hp + "/" + enemy.maxHp;
+    enemyGauge.style.width = Math.max(Math.round((enemy.hp / enemy.maxHp) * 100), 0) + "%";
+  };
+  const updateScene = (image) => {
+    if (!image) return;
+    scene.hidden = false;
+    if (sceneImg.getAttribute("src") !== image) {
+      sceneImg.src = image;
+    }
+  };
+  const hud = document.getElementById("hud");
+  const updateHud = (data) => {
+    if (!data) return;
+    hud.hidden = false;
+    hud.replaceChildren();
+    const parts = [
+      "Lv " + data.level,
+      "HP " + data.hp + "/" + data.maxHp,
+      { text: data.gold + " G", cls: "gold" },
+      "かぜぐすり " + data.medicine,
+      ...(data.immunity > 0 ? ["たいせい " + data.immunity] : []),
+    ];
+    if (data.infected) {
+      parts.push({ text: "インフルエンザ！", cls: "flu" });
+    }
+    for (const part of parts) {
+      const span = document.createElement("span");
+      span.textContent = typeof part === "string" ? part : part.text;
+      if (typeof part !== "string") span.className = part.cls;
+      hud.appendChild(span);
+    }
+  };
+  const setComposerOpen = (value) => {
+    composer.hidden = !value;
+    if (value) {
+      input.focus();
+    }
+  };
+  const renderSuggestions = (items, options) => {
+    const allowInput = !options || options.allowInput !== false;
+    hints.replaceChildren();
+    for (const item of items || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.text = item;
+      button.textContent = item;
+      button.disabled = busy || overlayOpen;
+      hints.appendChild(button);
+    }
+    if (allowInput) {
+      const misc = document.createElement("button");
+      misc.type = "button";
+      misc.className = "misc";
+      misc.dataset.input = "1";
+      misc.textContent = "にゅうりょく";
+      misc.disabled = busy || overlayOpen;
+      hints.appendChild(misc);
+    } else {
+      setComposerOpen(false);
+    }
+  };
   let busy = false;
+  const setBusy = (value) => {
+    busy = value;
+    const disabled = value || overlayOpen;
+    send.disabled = disabled;
+    input.disabled = disabled;
+    composer.setAttribute("aria-busy", value ? "true" : "false");
+    for (const button of hints.querySelectorAll("button")) {
+      button.disabled = disabled;
+    }
+  };
+  const updateNameActions = () => {
+    const empty = Array.from(heroName).length === 0;
+    nameBack.disabled = empty;
+    nameOk.disabled = empty;
+  };
+  const setOverlayOpen = (value) => {
+    overlayOpen = value;
+    overlay.hidden = !value;
+    overlay.setAttribute("aria-hidden", value ? "false" : "true");
+    shell.inert = value;
+    shell.setAttribute("aria-hidden", value ? "true" : "false");
+    if (value) {
+      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      renderName();
+      const firstKanaButton = kana.querySelector("button:not([disabled])");
+      if (firstKanaButton instanceof HTMLButtonElement) {
+        firstKanaButton.focus();
+      } else {
+        nameBack.focus();
+      }
+      announceText("ゆうしゃの なまえを つけて ください");
+    } else if (previousFocus && typeof previousFocus.focus === "function") {
+      previousFocus.focus();
+    } else {
+      input.focus();
+    }
+    setBusy(busy);
+  };
+  overlay.addEventListener("keydown", (event) => {
+    if (!overlayOpen || event.key !== "Tab") {
+      return;
+    }
+    const focusable = Array.from(overlay.querySelectorAll("button:not([disabled])"));
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
   const submit = async (text) => {
     if (busy) return;
     const message = text.trim();
     if (!message) return;
-    busy = true;
-    send.disabled = true;
+    if (/はじめから|やりなおす/.test(message)) {
+      try {
+        localStorage.removeItem(nameKey);
+      } catch {}
+      sessionId = crypto.randomUUID();
+      try {
+        localStorage.setItem(sessionKey, sessionId);
+      } catch {}
+      log.replaceChildren();
+      hud.hidden = true;
+      scene.hidden = true;
+      enemyBar.hidden = true;
+      creditsShown = false;
+      wasCleared = false;
+      renderSuggestions([]);
+      addMessage("sys", "＊ せかいが まきもどる…… ＊");
+    }
+    setBusy(true);
     input.value = "";
     addMessage("player", message);
-    const waiting = addMessage("sys", "……（ゲームマスターが かんがえている）");
+    const waiting = addMessage("sys", "……");
+    const waitingLines = [
+      "……",
+      "ゲームマスターが ダイスを ふっている……",
+      "うんめいが うごいている……",
+      "とおくで ウイルスの こえが する……",
+      "ちょまどひめが いのっている……",
+    ];
+    let waitingIndex = 0;
+    const waitingTimer = window.setInterval(() => {
+      waitingIndex = (waitingIndex + 1) % waitingLines.length;
+      waiting.textContent = waitingLines[waitingIndex];
+    }, 3500);
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -502,31 +2286,157 @@ const PLAY_PAGE = String.raw`<!doctype html>
         body: JSON.stringify({ sessionId, message }),
       });
       const data = await response.json();
+      window.clearInterval(waitingTimer);
       waiting.remove();
       if (!response.ok || !data.ok) {
-        addMessage("sys", data.message || "つうしんに しっぱいした。もういちど ためしてね。");
+        addMessage("sys", "＊「" + (data.message || "つうしんに しっぱいした。もういちど ためすのだ。") + "」");
+        if (data.error === "session_exhausted") {
+          renderSuggestions(["はじめから やりなおす"]);
+        }
       } else {
-        addMessage("gm", data.reply);
+        if (data.gameOver) {
+          addMessage("gameover", "＊＊ ゲームオーバー ＊＊");
+        }
+        renderSuggestions(data.suggestions);
+        updateHud(data.hud);
+        updateScene(data.image);
+        updateEnemy(data.hud && data.hud.enemy);
+        const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/);
+        const shownReply = shareMatch
+          ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
+          : data.reply;
+        await queueTypewrite(shownReply);
+        if (shareMatch) {
+          addShareButton(shareMatch[0]);
+        }
+        if (data.cleared && !wasCleared) {
+          wasCleared = true;
+          showCredits(data.hud && data.hud.name);
+        } else if (data.cleared) {
+          wasCleared = true;
+        }
+        if (data.needsName) {
+          heroName = "";
+          try {
+            localStorage.removeItem(nameKey);
+          } catch {}
+          renderName();
+          renderSuggestions(["なまえを つける"], { allowInput: false });
+        } else if (data.hud && typeof data.hud.name === "string" && data.hud.name) {
+          heroName = data.hud.name;
+          try {
+            localStorage.setItem(nameKey, heroName);
+          } catch {}
+        }
       }
     } catch {
+      window.clearInterval(waitingTimer);
       waiting.remove();
-      addMessage("sys", "つうしんに しっぱいした。もういちど ためしてね。");
+      addMessage("sys", "＊「つうしんに しっぱいした。もういちど ためすのだ。」");
     } finally {
-      busy = false;
-      send.disabled = false;
-      input.focus();
+      setBusy(false);
     }
   };
   composer.addEventListener("submit", (event) => {
     event.preventDefault();
-    void submit(input.value);
+    const value = input.value;
+    setComposerOpen(false);
+    void submit(value);
   });
   hints.addEventListener("click", (event) => {
     const target = event.target;
-    if (target instanceof HTMLButtonElement && target.dataset.text) {
+    if (!(target instanceof HTMLButtonElement)) {
+      return;
+    }
+    if (target.dataset.input) {
+      setComposerOpen(composer.hidden);
+      return;
+    }
+    if (target.dataset.text === "なまえを つける") {
+      renderName();
+      setOverlayOpen(true);
+      return;
+    }
+    if (target.dataset.text) {
       void submit(target.dataset.text);
     }
   });
+
+  const KANA_ROWS = [
+    "あいうえおはひふへほ",
+    "かきくけこまみむめも",
+    "さしすせそやゆよわん",
+    "たちつてとらりるれろ",
+    "なにぬねのがぎぐげご",
+    "ざじずぜぞだぢづでど",
+    "ばびぶべぼぱぴぷぺぽ",
+    "ぁぃぅぇぉゃゅょっー",
+  ];
+  const NAME_MAX = 6;
+  let heroName = "";
+  const renderName = () => {
+    nameDisplay.replaceChildren();
+    const chars = Array.from(heroName);
+    for (let i = 0; i < NAME_MAX; i += 1) {
+      const slot = document.createElement("span");
+      slot.className = "slot" + (i === chars.length ? " active" : "");
+      slot.textContent = chars[i] ?? "";
+      nameDisplay.appendChild(slot);
+    }
+    nameDisplay.setAttribute("aria-label", chars.length > 0 ? chars.join("") : "なまえ みにゅうりょく");
+    updateNameActions();
+  };
+  const startAdventure = (name) => {
+    setOverlayOpen(false);
+    try {
+      localStorage.setItem(nameKey, name);
+    } catch {}
+    void submit("ぼうけんをはじめて。ゆうしゃの なまえは「" + name + "」だ。");
+  };
+  for (const row of KANA_ROWS) {
+    for (const ch of Array.from(row)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = ch;
+      button.addEventListener("click", () => {
+        if (Array.from(heroName).length < NAME_MAX) {
+          heroName += ch;
+          renderName();
+        }
+      });
+      kana.appendChild(button);
+    }
+  }
+  nameBack.addEventListener("click", () => {
+    heroName = Array.from(heroName).slice(0, -1).join("");
+    renderName();
+  });
+  nameOk.addEventListener("click", () => {
+    if (Array.from(heroName).length > 0) {
+      startAdventure(heroName);
+    }
+  });
+
+  addMessage("sys", "＊ インフルだいまおうに さらわれた ちょまどひめを すくいだそう ＊");
+  let savedName = "";
+  try {
+    savedName = localStorage.getItem(nameKey) || "";
+  } catch {}
+  if (savedName) {
+    void queueTypewrite(
+      "おかえり " +
+        savedName +
+        "。なまえは のこっている。サーバーの ぼうけんが のこっていれば つづきから あそべるぞ。",
+    ).then(() => {
+      renderSuggestions(["つづきを あそぶ", "はじめから やりなおす"]);
+      input.focus();
+    });
+  } else {
+    renderName();
+    void queueTypewrite(${JSON.stringify(PROLOGUE_TEXT)}).then(() => {
+      renderSuggestions(["なまえを つける"], { allowInput: false });
+    });
+  }
 </script>
 </body>
 </html>`;
