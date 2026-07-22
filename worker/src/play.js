@@ -78,7 +78,7 @@ const GAME_TOOL = {
     "pharmacy: くすりやを見る・item で買う。かぜぐすり 30G と ワクチン 100G（かんせんを 3 かい ふせぐ）。",
     "medicine: かぜぐすりを飲んでインフルエンザを治す（戦闘中も可）。",
     "cast_spell: spell でじゅもんを唱える。fukkatsu_no_jumon: プレイヤーが自分からふっかつのじゅもんを唱えたときだけ jumon に入れて呼ぶ。じゅもんをプレイヤーに尋ねるのは禁止。",
-    "answer_host: ちょまどひめの問いに answer で答える。new_game: 最初からやり直す。",
+    "answer_host: インフルだいまおうの誘いに answer（はい/いいえ）で答える。new_game: 最初からやり直す。",
   ].join("\n"),
   input_schema: {
     type: "object",
@@ -249,10 +249,7 @@ function buildSuggestions(state, sceneText) {
   };
   const fill = () => {
     add("つよさを みる");
-    if (state.location === "office") {
-      add("きろくを のこして じゅもんを きく");
-    }
-    add(state.location === "venue" ? "まもりのまちへ いく" : "あるいた みちを ふりかえる");
+    add(state.location === "venue" ? "まもりのまちへ いく" : "まもりのまちへ もどる");
   };
   if (state.cleared) {
     add("ちょまどひめと はなす");
@@ -384,6 +381,39 @@ function pickImage(state, reply) {
 }
 
 const PURCHASE_ACTIONS = new Set(["weapon_shop", "armor_shop", "pharmacy"]);
+
+function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
+  const state = engine.state;
+  return json({
+    ok: true,
+    reply,
+    status: engine.statusText(),
+    suggestions: buildSuggestions(state, reply),
+    allowInput: !isShopScene(state, reply),
+    needsName: state.heroName === heroPlaceholderName && !state.cleared,
+    gameOver: false,
+    cleared: state.cleared === true,
+    image: pickImage(state, reply),
+    hud: {
+      name: state.heroName,
+      level: state.level,
+      hp: state.hp,
+      maxHp: state.maxHp,
+      gold: state.gold,
+      medicine: state.medicineCount,
+      immunity: state.immunityCount,
+      infected: state.infected,
+      weapon: state.weapon,
+      armor: state.armor,
+      enemy:
+        state.inBattle && state.enemy
+          ? { name: state.enemy.name, hp: state.enemy.hp, maxHp: state.enemy.maxHp }
+          : null,
+    },
+    remainingTurns,
+    ...overrides,
+  });
+}
 
 export function routeDirectCommand(state, rawMessage) {
   if (typeof rawMessage !== "string") {
@@ -1039,26 +1069,11 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     try {
       await deletePlayerSnapshot(env, playerId);
     } catch {}
-    return json({
-      ok: true,
-      reply: "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
-      status: engine.statusText(),
-      suggestions: buildSuggestions(engine.state),
-      needsName: true,
-      image: pickImage(engine.state, ""),
-      hud: {
-        name: engine.state.heroName,
-        level: engine.state.level,
-        hp: engine.state.hp,
-        maxHp: engine.state.maxHp,
-        gold: engine.state.gold,
-        medicine: engine.state.medicineCount,
-        infected: engine.state.infected,
-        weapon: engine.state.weapon,
-        armor: engine.state.armor,
-      },
-      remainingTurns: MAX_USER_TURNS,
-    });
+    return buildChatResponse(
+      engine,
+      "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
+      MAX_USER_TURNS,
+    );
   }
   if (turns >= MAX_USER_TURNS) {
     return json(
@@ -1117,28 +1132,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       return serviceUnavailableResponse();
     }
     await publishSnapshot(env, playerId, engine.snapshot(), ctx);
-    return json({
-      ok: true,
-      reply: toolResultText(rta),
-      status: engine.statusText(),
-      cleared: engine.state.cleared === true,
-      suggestions: buildSuggestions(engine.state),
-      image: pickImage(engine.state, toolResultText(rta)),
-      hud: {
-        name: engine.state.heroName,
-        level: engine.state.level,
-        hp: engine.state.hp,
-        maxHp: engine.state.maxHp,
-        gold: engine.state.gold,
-        medicine: engine.state.medicineCount,
-        immunity: engine.state.immunityCount,
-        infected: engine.state.infected,
-        weapon: engine.state.weapon,
-        armor: engine.state.armor,
-        enemy: null,
-      },
-      remainingTurns: MAX_USER_TURNS - (turns + 1),
-    });
+    return buildChatResponse(engine, toolResultText(rta), MAX_USER_TURNS - (turns + 1));
   }
 
   if (engine.state.heroName === heroPlaceholderName && !engine.state.cleared) {
@@ -1179,28 +1173,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       if (latestSnapshot) {
         await publishSnapshot(env, playerId, latestSnapshot, ctx);
       }
-      return json({
-        ok: true,
-        reply: nameReply,
-        status: engine.statusText(),
-        suggestions: named ? buildSuggestions(engine.state) : [],
-        needsName: !named,
-        image: pickImage(engine.state, nameReply),
-        hud: {
-          name: engine.state.heroName,
-          level: engine.state.level,
-          hp: engine.state.hp,
-          maxHp: engine.state.maxHp,
-          gold: engine.state.gold,
-          medicine: engine.state.medicineCount,
-          immunity: engine.state.immunityCount,
-          infected: engine.state.infected,
-          weapon: engine.state.weapon,
-          armor: engine.state.armor,
-          enemy: null,
-        },
-        remainingTurns: MAX_USER_TURNS - (turns + 1),
-      });
+      return buildChatResponse(engine, nameReply, MAX_USER_TURNS - (turns + 1));
     }
   }
 
@@ -1248,37 +1221,8 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     if (latestSnapshot) {
       await publishSnapshot(env, playerId, latestSnapshot, ctx);
     }
-    return json({
-      ok: true,
-      reply: directReply,
-      status: engine.statusText(),
-      suggestions: buildSuggestions(engine.state, directReply),
-      allowInput: !isShopScene(engine.state, directReply),
-      needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
+    return buildChatResponse(engine, directReply, MAX_USER_TURNS - (turns + 1), {
       gameOver: directTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
-      cleared: engine.state.cleared === true,
-      image: pickImage(engine.state, directReply),
-      hud: {
-        name: engine.state.heroName,
-        level: engine.state.level,
-        hp: engine.state.hp,
-        maxHp: engine.state.maxHp,
-        gold: engine.state.gold,
-        medicine: engine.state.medicineCount,
-        immunity: engine.state.immunityCount,
-        infected: engine.state.infected,
-        weapon: engine.state.weapon,
-        armor: engine.state.armor,
-        enemy:
-          engine.state.inBattle && engine.state.enemy
-            ? {
-                name: engine.state.enemy.name,
-                hp: engine.state.enemy.hp,
-                maxHp: engine.state.enemy.maxHp,
-              }
-            : null,
-      },
-      remainingTurns: MAX_USER_TURNS - (turns + 1),
     });
   }
 
@@ -1390,41 +1334,13 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   ) {
     composedReply = toolResultText(engine.handleStartAdventure());
   }
-  return json({
-    ok: true,
-    reply:
-      composedReply ||
-      (exhaustedWithPendingToolResult && lastToolOutputText
-        ? lastToolOutputText
-        : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）"),
-    status: engine.statusText(),
-    suggestions: buildSuggestions(engine.state, composedReply || replyText),
-    allowInput: !isShopScene(engine.state, composedReply || replyText),
-    needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
+  const finalReply =
+    composedReply ||
+    (exhaustedWithPendingToolResult && lastToolOutputText
+      ? lastToolOutputText
+      : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）");
+  return buildChatResponse(engine, finalReply, MAX_USER_TURNS - (turns + 1), {
     gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
-    cleared: engine.state.cleared === true,
-    image: pickImage(engine.state, composedReply || replyText),
-    hud: {
-      name: engine.state.heroName,
-      level: engine.state.level,
-      hp: engine.state.hp,
-      maxHp: engine.state.maxHp,
-      gold: engine.state.gold,
-      medicine: engine.state.medicineCount,
-      immunity: engine.state.immunityCount,
-      infected: engine.state.infected,
-      weapon: engine.state.weapon,
-      armor: engine.state.armor,
-      enemy:
-        engine.state.inBattle && engine.state.enemy
-          ? {
-              name: engine.state.enemy.name,
-              hp: engine.state.enemy.hp,
-              maxHp: engine.state.enemy.maxHp,
-            }
-          : null,
-    },
-    remainingTurns: MAX_USER_TURNS - (turns + 1),
   });
 }
 
