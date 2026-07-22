@@ -369,6 +369,9 @@ function pickImage(state, reply) {
   if (state.location === "office") {
     return `${base}/locations/office-district.webp`;
   }
+  if (reply.includes("ふるびた せきひ")) {
+    return `${base}/locations/stone-tablet.webp`;
+  }
   if (state.lairDepth >= 5) {
     return state.bossDefeated
       ? `${base}/characters/princess.webp`
@@ -376,9 +379,6 @@ function pickImage(state, reply) {
   }
   if (state.lairDepth === 4) {
     return `${base}/locations/healing-spring.webp`;
-  }
-  if (state.lairDepth === 2) {
-    return `${base}/locations/stone-tablet.webp`;
   }
   return `${base}/locations/virus-lair-entrance.webp`;
 }
