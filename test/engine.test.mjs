@@ -556,7 +556,7 @@ test("persist failures roll back regular fukkatsu restores", () => {
 });
 
 test("fan mode unlocks bebitaro telepathy", async () => {
-  const sequence = [0.0, 0.5];
+  const sequence = [0.0, 0.3];
   let index = 0;
   const engine = createEngine(
     { state: createInitialState(), gameLog: [] },

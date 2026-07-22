@@ -344,7 +344,7 @@ const ENEMY_IMAGE_MAP = {
   "へんいした へんいかぶ": "mutated-variant",
   "へんいかぶの おやだま": "variant-boss",
   インフルだいまおう: "influenza-lord",
-  くしゃみこぞう: "virus-particle",
+  くしゃみこぞう: "sneeze-kid",
 };
 
 function pickImage(state, reply) {
