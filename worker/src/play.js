@@ -235,10 +235,10 @@ function buildSuggestions(state, sceneText) {
         return [
           "ちょまどひめを おおてまちじょうへ とどける",
           "きゅうけいしつで やすむ（6G）",
-          "ぶきやに いく",
+          "ぶきやを のぞく",
         ];
       }
-      return ["ぶきやに いく", "ぼうぐやに いく", "くすりやに いく"];
+      return ["ぶきやを のぞく", "ぼうぐやを のぞく", "くすりやを のぞく"];
     }
   }
   const options = [];
@@ -295,35 +295,16 @@ function buildSuggestions(state, sceneText) {
       }
     }
   } else if (state.location === "office") {
+    const townOptions = [];
     if (state.princessCarried) {
-      add("ちょまどひめを おおてまちじょうへ とどける");
+      townOptions.push("ちょまどひめを おおてまちじょうへ とどける");
     }
     if (state.infected) {
-      add("きゅうけいしつで やすむ（6G）");
+      townOptions.push("きゅうけいしつで やすむ（6G）");
     }
-    for (const [name, item] of Object.entries(WEAPON_SHOP)) {
-      if (item.attack > state.weaponAttack && state.gold >= item.price) {
-        add(`ぶきやで ${name}を かう（${item.price}G）`);
-        break;
-      }
-    }
-    for (const [name, item] of Object.entries(ARMOR_SHOP)) {
-      if (item.defense > state.armorDefense && state.gold >= item.price) {
-        add(`ぼうぐやで ${name}を かう（${item.price}G）`);
-        break;
-      }
-    }
-    if (state.immunityCount === 0 && state.gold >= VACCINE_PRICE) {
-      add(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
-    }
-    if (state.medicineCount < 3 && state.gold >= MEDICINE_PRICE) {
-      add(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
-    }
-    if (options.length === 0) {
-      add("ぶきやを のぞく");
-      add("ぼうぐやを のぞく");
-    }
-    add("ウイルスのすみかへ いく");
+    townOptions.push("ぶきやを のぞく", "ぼうぐやを のぞく", "くすりやを のぞく");
+    townOptions.push("ウイルスのすみかへ いく");
+    return townOptions.slice(0, 4);
   } else {
     if (state.princessCarried) {
       add("おおてまちじょうへ もどる");
