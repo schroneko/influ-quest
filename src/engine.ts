@@ -996,6 +996,20 @@ ${artHtml}
       if (state.startedAtMs === 0) {
         state.startedAtMs = now();
       }
+      if (heroName === "ちょまど") {
+        state.fanMode = true;
+        return okText(
+          [
+            "てんの こえ「そなたの なは ちょまど。……ん？ その な、どこかで……」",
+            "",
+            "どこからか あたたかい かぜが ふいた。",
+            "ちょまどファンモードが ON になった！",
+            "",
+            "（きこえますか…わたしも ちょまど です…あなたも ちょまど…？",
+            "せかいに ちょまどが ふたり…なんだか こころづよい です…）",
+          ].join("\n"),
+        );
+      }
       if (heroName === "もょもと") {
         state.level = 48;
         state.exp = 999999;
@@ -1033,7 +1047,15 @@ ${artHtml}
         return okText(trueEnd());
       }
       if (state.cleared) {
-        return okText("ちょまどひめ「ゆうしゃさま！ また あそびに きて くださいね！」");
+        return okText(
+          pick([
+            "ちょまどひめ「ゆうしゃさま！ また あそびに きて くださいね！」",
+            "ちょまどひめ「おかげさまで ぶじに とうだん できました。ほんとうに ありがとうございます！」",
+            "ちょまどひめ「てあらい うがい よぼうせっしゅ。ゆうしゃさまも やくそく ですよ？」",
+            "ちょまどひめ「つぎの まつりでも いっしょに ぼうけん できたら うれしいです！」",
+            "ちょまどひめ「ひみつ ですけど……わたし、C# が だいすき なんです。えへへ」",
+          ]),
+        );
       }
       if (!state.hostGreeted) {
         if (state.heroName === heroPlaceholderName) {
@@ -1044,6 +1066,12 @@ ${artHtml}
         state.gold += 200;
         if (state.startedAtMs === 0) {
           state.startedAtMs = now();
+        }
+        if (state.heroName === "ちょまど") {
+          return okText(
+            HOST_QUEST_TEXT +
+              "\n\nだいじん「……ところで ゆうしゃどの。その かお、さらわれた ひめに うりふたつ なのじゃが……まあ よい。たのんだぞ！」",
+          );
         }
         return okText(HOST_QUEST_TEXT);
       }
@@ -1091,6 +1119,10 @@ ${artHtml}
     if (state.bossDefeated && !state.princessCarried && state.lairDepth >= 5) {
       state.princessCarried = true;
       let rescue = PRINCESS_TEXT;
+      if (state.heroName === "ちょまど") {
+        rescue +=
+          "\n\nちょまどひめ「……あれ？ あなたも ちょまど！？\nふふ、せかいに ちょまどが ふたり。さいきょう ですね！」";
+      }
       if (state.fanMode) {
         rescue += "\n\nちょまどひめ「ベビたろうが おうちで まって いるのです。いそぎましょう！」";
       }

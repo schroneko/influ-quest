@@ -228,7 +228,6 @@ function buildSuggestions(state, sceneText) {
     add(state.location === "venue" ? "まもりのまちへ いく" : "あるいた みちを ふりかえる");
   };
   if (state.cleared) {
-    add("つよさを みせて");
     add("ちょまどひめと はなす");
     add("はじめから やりなおす");
     return options;
@@ -2025,8 +2024,11 @@ const PLAY_PAGE = String.raw`<!doctype html>
   };
   let creditsShown = false;
   let wasCleared = false;
-  const showCredits = (playerName) => {
+  const showCredits = (playerName, onClose) => {
     if (creditsShown || document.querySelector(".credits")) {
+      if (typeof onClose === "function") {
+        onClose();
+      }
       return;
     }
     creditsShown = true;
@@ -2079,11 +2081,20 @@ const PLAY_PAGE = String.raw`<!doctype html>
     hint.textContent = "タップで とじる";
     overlayEl.appendChild(inner);
     overlayEl.appendChild(hint);
-    overlayEl.addEventListener("click", () => {
+    let closed = false;
+    const close = () => {
+      if (closed) {
+        return;
+      }
+      closed = true;
       overlayEl.remove();
-    });
+      if (typeof onClose === "function") {
+        onClose();
+      }
+    };
+    overlayEl.addEventListener("click", close);
     inner.addEventListener("animationend", () => {
-      window.setTimeout(() => overlayEl.remove(), 1500);
+      window.setTimeout(close, 1500);
     });
     document.body.appendChild(overlayEl);
   };
@@ -2336,14 +2347,20 @@ const PLAY_PAGE = String.raw`<!doctype html>
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;
         await queueTypewrite(shownReply);
-        if (shareMatch) {
-          addShareButton(shareMatch[0]);
-        }
         if (data.cleared && !wasCleared) {
           wasCleared = true;
-          showCredits(data.hud && data.hud.name);
-        } else if (data.cleared) {
-          wasCleared = true;
+          showCredits(data.hud && data.hud.name, () => {
+            if (shareMatch) {
+              addShareButton(shareMatch[0]);
+            }
+          });
+        } else {
+          if (data.cleared) {
+            wasCleared = true;
+          }
+          if (shareMatch) {
+            addShareButton(shareMatch[0]);
+          }
         }
         if (data.needsName) {
           heroName = "";
