@@ -18,9 +18,10 @@ import {
 } from "./state.js";
 
 export const saveDir = join(homedir(), ".influenza-quest");
-export const savePath = join(saveDir, "karte.json");
+export const savePath = join(saveDir, "bouken-no-sho.json");
 export const playerIdPath = join(saveDir, "player-id");
 export const screenPath = join(saveDir, "local-ui-preview.html");
+const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function chmodIfPossible(path: string, mode: number): void {
   try {
@@ -57,16 +58,14 @@ function atomicWritePrivateFile(path: string, payload: string, mode = 0o600): vo
 export function loadPlayerId(path = playerIdPath): string {
   try {
     const value = readFileSync(path, "utf8").trim();
-    if (value) {
+    if (uuidV4Pattern.test(value)) {
       chmodIfPossible(path, 0o600);
       return value;
     }
   } catch {}
   const id = randomUUID();
   try {
-    ensurePrivateDirectory(dirname(path));
-    writeFileSync(path, id, { mode: 0o600 });
-    chmodIfPossible(path, 0o600);
+    atomicWritePrivateFile(path, id, 0o600);
   } catch {}
   return id;
 }

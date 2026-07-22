@@ -5,7 +5,10 @@ import {
   heroPlaceholderName,
   maxSpellLength,
   performableActionNames,
+  armorShopItemNames,
+  pharmacyItemNames,
   shopItemNames,
+  weaponShopItemNames,
   type Engine,
   type HostOfferResponse,
   type ToolResult,
@@ -27,13 +30,15 @@ export function createGameServer(options: GameServerOptions = {}): {
     {
       instructions: [
         "インフルエンザテーマのレトロ風テキスト RPG のゲームサーバーです。あなたはゲームマスターとして進行してください。",
+        "重要な場面（ゲーム開始、だいじんのクエスト、テレパシー、せきひ、インフルだいまおうの誘い、エンディング、ゲームオーバー、爆速RTA、ふっかつのじゅもん）の本文は、あなたが書かず、ツールの返り値を一字一句そのまま表示してください。要約・脚色・書きかえは禁止です。",
         "ツールの返り値のテキストはコードブロックでそのまま表示し、結果を捏造しないでください。",
+        "そうび（ぶき・ぼうぐ）や もちものを きかれたら、かならず status ツールか influenza://status リソースで さいしんの じょうたいを とってから こたえてください。",
         "毎ターン、次にとれる行動の候補を短く添えてください。",
         "場所や状況によって使えるツールが変わりますが、start_adventure と perform_action は つねに つかえます。",
-        `ゲーム開始時は まず start_adventure を呼び、なまえが「${heroPlaceholderName}」なら name_hero で なまえを つけ、そのあと talk で しゅさいしゃと はなしてください。`,
+        `ゲーム開始時は まず start_adventure を呼び、なまえが「${heroPlaceholderName}」なら name_hero で なまえを つけ、そのあと talk で だいじんと はなしてください。`,
         options.writeScreen
           ? "render_screen は private なローカル HTML ファイルを書き出し、絶対パスと HTML を返します。Artifact や Canvas やローカルブラウザの local UI Preview に使えますが、publish はしません。"
-          : "render_screen は げんざいの カルテを HTML として返します。表示に使ってください。",
+          : "render_screen は げんざいの ぼうけんのしょを HTML として返します。表示に使ってください。",
       ].join("\n"),
     },
   );
@@ -50,7 +55,7 @@ export function createGameServer(options: GameServerOptions = {}): {
   async function elicitHostOffer(): Promise<HostOfferResponse> {
     try {
       const response = await server.server.elicitInput({
-        message: "しゅさいしゃ「とうだんわくの はんぶんを そなたに やろう。うけとるか？」",
+        message: "インフルだいまおう「とうだんわくの はんぶんを やろう。うけとるか？」",
         requestedSchema: {
           type: "object",
           properties: {
@@ -101,7 +106,10 @@ export function createGameServer(options: GameServerOptions = {}): {
     if (!options.writeScreen) {
       return {
         content: [
-          { type: "text", text: "げんざいの カルテを HTML で かえす。ひょうじに つかってくれ。" },
+          {
+            type: "text",
+            text: "げんざいの ぼうけんのしょを HTML で かえす。ひょうじに つかってくれ。",
+          },
           { type: "text", text: html },
         ],
       };
@@ -142,7 +150,7 @@ export function createGameServer(options: GameServerOptions = {}): {
       {
         title: "こうどうをだいこうする",
         description:
-          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、clinic、pharmacy、cast_spell、fukkatsu_no_jumon、answer_host を まとめてよべる",
+          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、clinic、weapon_shop、armor_shop、pharmacy、medicine、cast_spell、fukkatsu_no_jumon、answer_host を まとめてよべる",
         inputSchema: {
           action: z.enum(performableActionNames),
           name: z.string().min(1).max(128).optional(),
@@ -187,7 +195,7 @@ export function createGameServer(options: GameServerOptions = {}): {
         title: "がめんをえがく",
         description: options.writeScreen
           ? "private な ローカル UI Preview 用 HTML を かきだし、絶対パスと HTML を かえす。publish はしない"
-          : "げんざいの カルテを HTML で かえす",
+          : "げんざいの ぼうけんのしょを HTML で かえす",
       },
       withSafety(handleRenderScreen),
     ),
@@ -232,19 +240,50 @@ export function createGameServer(options: GameServerOptions = {}): {
     ),
     clinic: server.registerTool(
       "clinic",
-      { title: "しんりょうじょ", description: "カルテに きろくする（セーブ）" },
+      { title: "しんりょうじょ", description: "ぼうけんのしょに きろくする（セーブ）" },
       withSafety(() => game().handleClinic()),
+    ),
+    weaponShop: server.registerTool(
+      "weapon_shop",
+      {
+        title: "ぶきや",
+        description: "ぶきを みる・かう。item を していすると こうにゅうする",
+        inputSchema: { item: z.enum(weaponShopItemNames).optional().describe("かいたい ぶき") },
+      },
+      withArgsSafety((args: { item?: (typeof weaponShopItemNames)[number] }) =>
+        game().handleWeaponShop(args),
+      ),
+    ),
+    armorShop: server.registerTool(
+      "armor_shop",
+      {
+        title: "ぼうぐや",
+        description: "マスクなどの ぼうぐを みる・かう。item を していすると こうにゅうする",
+        inputSchema: { item: z.enum(armorShopItemNames).optional().describe("かいたい ぼうぐ") },
+      },
+      withArgsSafety((args: { item?: (typeof armorShopItemNames)[number] }) =>
+        game().handleArmorShop(args),
+      ),
     ),
     pharmacy: server.registerTool(
       "pharmacy",
       {
-        title: "やっきょく",
-        description: "そうびを みる・かう。item を していすると こうにゅうする",
-        inputSchema: { item: z.enum(shopItemNames).optional().describe("かいたい そうび") },
+        title: "くすりや",
+        description:
+          "くすりを 見る・item で かう。かぜぐすり（30ゴールド、3こまで）と ワクチン（100ゴールド、かんせんを 3 かい ふせぐ たいせい）",
+        inputSchema: { item: z.enum(pharmacyItemNames).optional() },
       },
-      withArgsSafety((args: { item?: (typeof shopItemNames)[number] }) =>
+      withArgsSafety((args: { item?: (typeof pharmacyItemNames)[number] }) =>
         game().handlePharmacy(args),
       ),
+    ),
+    medicine: server.registerTool(
+      "medicine",
+      {
+        title: "かぜぐすりをのむ",
+        description: "かぜぐすりを のんで インフルエンザを なおす。せんとうちゅうでも つかえる",
+      },
+      withSafety(() => game().handleMedicine()),
     ),
     castSpell: server.registerTool(
       "cast_spell",
@@ -269,8 +308,8 @@ export function createGameServer(options: GameServerOptions = {}): {
     answerHost: server.registerTool(
       "answer_host",
       {
-        title: "しゅさいしゃにこたえる",
-        description: "しゅさいしゃの といに こたえる",
+        title: "だいまおうにこたえる",
+        description: "インフルだいまおうの といに こたえる",
         inputSchema: { answer: z.enum(["はい", "いいえ"]) },
       },
       withArgsSafety((args: { answer: "はい" | "いいえ" }) => game().handleAnswerHost(args)),
@@ -304,15 +343,22 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.explore, !battle && state.location === "lair");
     setEnabled(tools.rest, !battle && state.location === "office");
     setEnabled(tools.clinic, !battle && state.location === "office");
+    setEnabled(tools.weaponShop, !battle && state.location === "office");
+    setEnabled(tools.armorShop, !battle && state.location === "office");
     setEnabled(tools.pharmacy, !battle && state.location === "office");
+    setEnabled(tools.medicine, state.medicineCount > 0);
     setEnabled(tools.fukkatsu, !battle);
-    setEnabled(tools.answerHost, !battle && state.hostAsking && state.location === "venue");
+    setEnabled(tools.answerHost, !battle && state.hostAsking);
   }
 
   server.registerResource(
     "status",
     "influenza://status",
-    { title: "カルテ（ステータス）", description: "げんざいの ステータス", mimeType: "text/plain" },
+    {
+      title: "ぼうけんのしょ（ステータス）",
+      description: "げんざいの ステータス",
+      mimeType: "text/plain",
+    },
     async (uri) => ({ contents: [{ uri: uri.href, text: game().statusText() }] }),
   );
 
@@ -325,8 +371,8 @@ export function createGameServer(options: GameServerOptions = {}): {
         {
           uri: uri.href,
           text: [
-            "イベントかいじょう ─── オフィスがい ─── ウイルスのすみか",
-            "（しゅさいしゃ）　（きゅうけい・しんりょうじょ・やっきょく）　（？？？）",
+            "おおてまちじょう ─── まもりのまち ─── ウイルスのすみか",
+            "（だいじん・ぎょくざのま）　（ぶきや・ぼうぐや・くすりや・きゅうけい・しんりょうじょ）　（？？？）",
           ].join("\n"),
         },
       ],
@@ -362,7 +408,7 @@ export function createGameServer(options: GameServerOptions = {}): {
               "・レトロ RPG の雰囲気をこわさない",
               "まず start_adventure を呼ぶ。",
               `なまえが「${heroPlaceholderName}」なら name_hero で なまえを つける。`,
-              "そのあと talk で イベントかいじょうの しゅさいしゃと はなしてゲームを始める。",
+              "そのあと talk で だいじんと はなして ゲームを始める。",
             ].join("\n"),
           },
         },

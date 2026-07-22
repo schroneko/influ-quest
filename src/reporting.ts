@@ -129,7 +129,7 @@ export function createDashboardReporter(options: DashboardReporterOptions): Dash
         return;
       }
       if (payload === lastFailedPayload && failureCount >= 2) {
-        return;
+        failureCount = 0;
       }
       if (payload !== lastFailedPayload) {
         lastFailedPayload = "";
