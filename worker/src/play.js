@@ -204,6 +204,13 @@ function buildSuggestions(state, sceneText) {
       ];
     }
     if (sceneText.includes("ここは まもりのまちだ")) {
+      if (state.princessCarried) {
+        return [
+          "ちょまどひめを おおてまちじょうへ とどける",
+          "きゅうけいしつで やすむ（6G）",
+          "ぶきやに いく",
+        ];
+      }
       return ["ぶきやに いく", "ぼうぐやに いく", "くすりやに いく"];
     }
   }
@@ -251,7 +258,7 @@ function buildSuggestions(state, sceneText) {
     } else if (state.princessCarried) {
       add("ちょまどひめを おおてまちじょうへ とどける");
       add("つよさを みる");
-      add("まもりのまちへ よってから とどける");
+      add("まもりのまちへ いく");
     } else {
       add("まもりのまちへ いく");
       add("ウイルスのすみかへ いそぐ");
@@ -262,6 +269,9 @@ function buildSuggestions(state, sceneText) {
       }
     }
   } else if (state.location === "office") {
+    if (state.princessCarried) {
+      add("ちょまどひめを おおてまちじょうへ とどける");
+    }
     if (state.infected) {
       add("きゅうけいしつで やすむ（6G）");
     }
