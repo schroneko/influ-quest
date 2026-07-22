@@ -256,7 +256,7 @@ function buildSuggestions(state, sceneText) {
     if (!state.hostGreeted) {
       return ["だいじんと はなす"];
     } else if (state.princessCarried) {
-      add("ちょまどひめを おおてまちじょうへ とどける");
+      add("ちょまどひめを だいじんに とどける（エンディングへ）");
       add("つよさを みる");
       add("まもりのまちへ いく");
     } else {
@@ -1329,7 +1329,15 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     await publishSnapshot(env, playerId, latestSnapshot, ctx);
   }
 
-  const composedReply = composeGameReply(gameTexts, replyText, message);
+  let composedReply = composeGameReply(gameTexts, replyText, message);
+  if (
+    gameTexts.length === 0 &&
+    !engine.state.cleared &&
+    composedReply &&
+    /クリア|エンディング/.test(composedReply)
+  ) {
+    composedReply = toolResultText(engine.handleStartAdventure());
+  }
   return json({
     ok: true,
     reply:
