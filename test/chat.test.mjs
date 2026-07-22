@@ -239,12 +239,12 @@ test("はい confirms a purchase the assistant just proposed", async () => {
         content: [
           {
             type: "text",
-            text: "ぼうぐや「かんせんたいさくスーツは 120ゴールドだ。かいますか？」",
+            text: "ぼうぐや「かんせんたいさくスーツは 400ゴールドだ。かいますか？」",
           },
         ],
       },
     ],
-    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 300, location: "office" }),
+    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 500, location: "office" }),
   });
   await withMockedFetch(
     [
@@ -256,7 +256,7 @@ test("はい confirms a purchase the assistant just proposed", async () => {
       assert.equal(response.status, 200);
       const body = await response.json();
       assert.match(body.reply, /かんせんたいさくスーツを そうびした/);
-      assert.equal(body.hud.gold, 180);
+      assert.equal(body.hud.gold, 100);
       assert.equal(body.hud.armor, "かんせんたいさくスーツ");
     },
   );

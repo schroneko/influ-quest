@@ -5,6 +5,7 @@ export const locationIds = ["venue", "office", "lair"] as const;
 export const weaponNames = [
   "たいおんけい",
   "アルコールスプレー",
+  "じょきんのやり",
   "でんせつのワクチンソード",
 ] as const;
 export const armorNames = [
@@ -39,6 +40,7 @@ export const enemyNames = [
 export const weaponAttackByName = {
   たいおんけい: 5,
   アルコールスプレー: 14,
+  じょきんのやり: 22,
   でんせつのワクチンソード: 30,
 } as const;
 export const maxJumonLength = 8192;

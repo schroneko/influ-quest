@@ -50,7 +50,7 @@ function encodeLegacyJumon(state) {
   writeBits(bits, state.level, 3);
   writeBits(bits, Math.min(state.exp, 131071), 17);
   writeBits(bits, Math.min(state.gold, 131071), 17);
-  writeBits(bits, ["たいおんけい", "アルコールスプレー", "でんせつのワクチンソード"].indexOf(state.weapon), 2);
+  writeBits(bits, ["たいおんけい", "アルコールスプレー", "じょきんのやり", "でんせつのワクチンソード"].indexOf(state.weapon), 2);
   writeBits(bits, ["ふだんぎ", "ファントムマスク", "N95マスク", "かんせんたいさくスーツ"].indexOf(state.armor), 2);
   writeBits(bits, state.medicineCount, 2);
   writeBits(bits, ["venue", "office", "lair"].indexOf(state.location), 2);

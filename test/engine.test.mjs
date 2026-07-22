@@ -166,7 +166,7 @@ test("armor reduces incoming damage", () => {
 test("shops equip the hero and medicine cures the flu", () => {
   const engine = newEngine();
   engine.state.location = "office";
-  engine.state.gold = 300;
+  engine.state.gold = 400;
   const weaponBuy = engine.handleWeaponShop({ item: "アルコールスプレー" });
   assert.match(text(weaponBuy), /そうびした/);
   assert.equal(engine.state.weaponAttack, 14);

@@ -24,7 +24,11 @@ export const locationDisplayNames: Record<LocationId, string> = {
 };
 
 export const destinationNames = ["おおてまちじょう", "まもりのまち", "ウイルスのすみか"] as const;
-export const weaponShopItemNames = ["アルコールスプレー", "でんせつのワクチンソード"] as const;
+export const weaponShopItemNames = [
+  "アルコールスプレー",
+  "じょきんのやり",
+  "でんせつのワクチンソード",
+] as const;
 export const armorShopItemNames = [
   "ファントムマスク",
   "N95マスク",
@@ -172,8 +176,15 @@ export const WEAPON_SHOP: Record<
       "ぶきや「アルコールスプレー は ぼうけんしゃの ていばん。ふきつければ ウイルスは ちぢみあがる ぜ」",
     bought: "シュッ！ ためしうちの ひとふきで あたりの くうきが ひきしまった！",
   },
+  じょきんのやり: {
+    price: 200,
+    attack: weaponAttackByName["じょきんのやり"],
+    description: "じょきんパワーを やどした ながやり。まが もの に ふれずに つらぬける",
+    sales: "ぶきや「じょきんのやり は とどく はんいが ちがう。ウイルスに ちかよらず たたかえるぞ」",
+    bought: "やりの ほさきが しろく かがやいた！ まわりの くうきまで きよらかだ！",
+  },
   でんせつのワクチンソード: {
-    price: 180,
+    price: 400,
     attack: weaponAttackByName["でんせつのワクチンソード"],
     description: "せんじんが のこした きぼうの いっしん。ウイルスを たちきる さいきょうの けん",
     sales:
@@ -187,14 +198,14 @@ export const ARMOR_SHOP: Record<
   { price: number; defense: number; description: string; sales: string; bought: string }
 > = {
   ファントムマスク: {
-    price: 40,
+    price: 100,
     defense: armorDefenseByName["ファントムマスク"],
     description: "ぬのせいの マスク。うけるダメージを へらし、かんせんりつ 25 パーセントに さげる",
     sales: "ぼうぐや「ファントムマスク は ないよりは まし。ぬのの ぬくもりが ある」",
     bought: "すこし ぶかぶか だが、きもちは まもられて いる！",
   },
   N95マスク: {
-    price: 90,
+    price: 200,
     defense: armorDefenseByName["N95マスク"],
     description: "みっぺいせいの たかい めいひん。かんせんりつ 12 パーセントに さげる",
     sales:
@@ -202,7 +213,7 @@ export const ARMOR_SHOP: Record<
     bought: "かおに ぴったりと はりつく あんしんかん！ こきゅうも できる！",
   },
   かんせんたいさくスーツ: {
-    price: 120,
+    price: 400,
     defense: armorDefenseByName["かんせんたいさくスーツ"],
     description: "ぜんしんを おおう さいこうきゅうひん。かんせんりつ 5 パーセントに さげる",
     sales:
@@ -223,6 +234,7 @@ export const SHARE_URL = `https://x.com/intent/post?text=${encodeURIComponent(SH
 const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
   たいおんけい: "ゆうしゃは たいおんけいを ふりかざした！ ピピッ！",
   アルコールスプレー: "ゆうしゃは アルコールスプレーを ふきつけた！ シュッ！",
+  じょきんのやり: "ゆうしゃは じょきんのやりを つきだした！ シュバッ！",
   でんせつのワクチンソード: "ゆうしゃは でんせつの ワクチンソードを ふりおろした！",
 };
 
