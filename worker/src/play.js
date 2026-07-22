@@ -151,6 +151,17 @@ function loadSessionState(saved) {
   return { state: createInitialState(), gameLog: [] };
 }
 
+export function isShopScene(state, sceneText) {
+  if (!sceneText || state.inBattle || state.hostAsking || state.cleared) {
+    return false;
+  }
+  return (
+    sceneText.includes("ぶきや「いらっしゃい") ||
+    sceneText.includes("ぼうぐや「いらっしゃい") ||
+    sceneText.includes("くすりや「いらっしゃい")
+  );
+}
+
 function buildSuggestions(state, sceneText) {
   if (state.heroName === heroPlaceholderName && !state.cleared) {
     return [];
@@ -165,17 +176,14 @@ function buildSuggestions(state, sceneText) {
       }
       const opts = [];
       for (const [name, item] of Object.entries(entries)) {
-        if (kind === "weapon" && (item.attack <= state.weaponAttack || state.gold < item.price)) {
+        if (kind === "weapon" && item.attack <= state.weaponAttack) {
           continue;
         }
-        if (kind === "armor" && (item.defense <= state.armorDefense || state.gold < item.price)) {
+        if (kind === "armor" && item.defense <= state.armorDefense) {
           continue;
         }
         const shopName = kind === "weapon" ? "ぶきや" : "ぼうぐや";
         opts.push(`${shopName}で ${name}を かう（${item.price}G）`);
-        if (opts.length >= 2) {
-          break;
-        }
       }
       opts.push("みせを でる");
       return opts;
@@ -189,15 +197,14 @@ function buildSuggestions(state, sceneText) {
       return armorScene;
     }
     if (sceneText.includes("くすりや「いらっしゃい")) {
-      const opts = [];
-      if (state.immunityCount < 3 && state.gold >= VACCINE_PRICE) {
-        opts.push(`くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`);
-      }
-      if (state.medicineCount < 3 && state.gold >= MEDICINE_PRICE) {
-        opts.push(`くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`);
-      }
-      opts.push("みせを でる");
-      return opts;
+      return [
+        `くすりやで ワクチンを うつ（${VACCINE_PRICE}G）`,
+        `くすりやで かぜぐすりを かう（${MEDICINE_PRICE}G）`,
+        "みせを でる",
+      ];
+    }
+    if (sceneText.includes("ここは まもりのまちだ")) {
+      return ["ぶきやに いく", "ぼうぐやに いく", "くすりやに いく"];
     }
   }
   const options = [];
@@ -484,6 +491,9 @@ export function routeFuzzyCommand(state, rawMessage) {
     .replace(/[\s「」『』、。・!！?？]/g, "");
   if (spellForm.includes("てあらいうがいわくちん")) {
     return [{ action: "fukkatsu_no_jumon", jumon: "てあらいうがいわくちん" }];
+  }
+  if (spellForm.includes("ふるいけや")) {
+    return [{ action: "fukkatsu_no_jumon", jumon: "ふるいけやかわずとびこむみずのおとばしや" }];
   }
   if (spellForm.includes("ぱんでみっく")) {
     return [{ action: "cast_spell", spell: "ぱんでみっく" }];
@@ -1183,6 +1193,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       reply: directReply,
       status: engine.statusText(),
       suggestions: buildSuggestions(engine.state, directReply),
+      allowInput: !isShopScene(engine.state, directReply),
       needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
       gameOver: directTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
       cleared: engine.state.cleared === true,
@@ -1318,6 +1329,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
         : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）"),
     status: engine.statusText(),
     suggestions: buildSuggestions(engine.state, composedReply || replyText),
+    allowInput: !isShopScene(engine.state, composedReply || replyText),
     needsName: engine.state.heroName === heroPlaceholderName && !engine.state.cleared,
     gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
     cleared: engine.state.cleared === true,
@@ -2297,7 +2309,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
         if (data.gameOver) {
           addMessage("gameover", "＊＊ ゲームオーバー ＊＊");
         }
-        renderSuggestions(data.suggestions);
+        renderSuggestions(data.suggestions, { allowInput: data.allowInput !== false });
         updateHud(data.hud);
         updateScene(data.image);
         updateEnemy(data.hud && data.hud.enemy);

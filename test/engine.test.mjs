@@ -408,11 +408,35 @@ test("depth four fountain restores hp before the boss", () => {
   engine.state.location = "lair";
   engine.state.lairDepth = 3;
   engine.state.miniBossDefeated = true;
+  engine.state.tabletFound = true;
   engine.state.hp = 5;
   const result = engine.handleExplore();
   assert.match(text(result), /いずみ/);
   assert.equal(engine.state.hp, engine.state.maxHp);
   assert.equal(engine.state.lairDepth, 4);
+});
+
+test("tablet appears randomly at depth three or is guaranteed at the fountain", () => {
+  const found = newEngine({ random: () => 0.1 });
+  found.state.exp = 8;
+  found.state.location = "lair";
+  found.state.lairDepth = 3;
+  found.state.miniBossDefeated = true;
+  const tablet = found.handleExplore();
+  assert.match(text(tablet), /せきひ/);
+  assert.equal(found.state.tabletFound, true);
+  assert.equal(found.state.lairDepth, 3);
+
+  const missed = newEngine({ random: () => 0.9 });
+  missed.state.exp = 8;
+  missed.state.location = "lair";
+  missed.state.lairDepth = 3;
+  missed.state.miniBossDefeated = true;
+  const fountain = missed.handleExplore();
+  assert.match(text(fountain), /いずみ/);
+  assert.match(text(fountain), /せきひ/);
+  assert.equal(missed.state.tabletFound, true);
+  assert.equal(missed.state.lairDepth, 4);
 });
 
 test("adventure timer runs from quest start to clear", async () => {

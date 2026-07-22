@@ -115,7 +115,7 @@ const heroNameSchema = z.preprocess(
 
 const gameStateFields = {
   heroName: heroNameSchema,
-  level: integerRange(1, 5),
+  level: integerRange(1, 60),
   exp: integerRange(0, 999999),
   hp: integerRange(0, 999),
   maxHp: integerRange(1, 999),
@@ -767,7 +767,7 @@ function decodeJumonV3(payloadGroups: number[], reader: BitReader): GameState {
 export function encodeJumon(state: GameState, _gameLog: string[] = [], _savedAt?: string): string {
   const writer = new BitWriter();
   writer.write(JUMON_VERSION, 4);
-  writer.write(state.level, 3);
+  writer.write(Math.min(state.level, 5), 3);
   writer.write(Math.min(state.exp, maxJumonSeconds), 17);
   writer.write(Math.min(state.gold, maxJumonGold), 17);
   writer.write(weaponNames.indexOf(state.weapon), 2);

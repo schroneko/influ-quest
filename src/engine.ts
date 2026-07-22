@@ -5,6 +5,7 @@ import {
   decodeJumon,
   encodeJumon,
   infectionChanceByArmor,
+  maxHpForLevel,
   maxJumonLength,
   normalizeHeroName,
   normalizeSpellText,
@@ -992,6 +993,30 @@ ${artHtml}
         return errorText(`てんの こえ「${heroName}は すでに べつの ゆうしゃが なのっている。」`);
       }
       state.heroName = heroName;
+      if (state.startedAtMs === 0) {
+        state.startedAtMs = now();
+      }
+      if (heroName === "もょもと") {
+        state.level = 48;
+        state.exp = 999999;
+        state.maxHp = maxHpForLevel(48);
+        state.hp = state.maxHp;
+        state.gold = 27671;
+        state.weapon = "でんせつのワクチンソード";
+        state.weaponAttack = weaponAttackByName["でんせつのワクチンソード"];
+        state.armor = "かんせんたいさくスーツ";
+        state.armorDefense = armorDefenseByName["かんせんたいさくスーツ"];
+        return okText(
+          [
+            `てんの こえ「そなたの なは ${state.heroName}。……その なは まさか……！」`,
+            "",
+            "いにしえの ゆうしゃの きおくが よみがえった！",
+            "レベルが 48 に あがった！",
+            "27671ゴールド を てにいれた！",
+            "でんせつのワクチンソードと かんせんたいさくスーツを そうびした！",
+          ].join("\n"),
+        );
+      }
       return okText(`てんの こえ「そなたの なは ${state.heroName}。よい なだ！」`);
     };
     const taken = io.isNameTaken?.(heroName) ?? false;
@@ -1144,6 +1169,10 @@ ${artHtml}
           startBattle(oyadama),
       );
     }
+    if (state.lairDepth >= 3 && !state.tabletFound && random() < 0.5) {
+      state.tabletFound = true;
+      return okText(drain + TABLET_TEXT);
+    }
     state.lairDepth += 1;
     if (state.lairDepth === 1 && state.exp === 0 && !state.bossDefeated) {
       return okText(
@@ -1165,10 +1194,6 @@ ${artHtml}
           startBattle(flulord),
       );
     }
-    if (state.lairDepth === 2 && !state.tabletFound) {
-      state.tabletFound = true;
-      return okText(drain + TABLET_TEXT);
-    }
     if (state.lairDepth === 3 && !state.miniBossDefeated) {
       return okText(
         drain +
@@ -1180,16 +1205,22 @@ ${artHtml}
       state.hp = state.maxHp;
       const cured = state.infected;
       state.infected = false;
-      return okText(
-        maybeTelepathy(
-          [
-            "すみかの おくで きよらかな いずみを みつけた。",
-            `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
-            ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
-            "（この さきから だいまおうの けはいが する……じゅんびは いいか）",
-          ].join("\n"),
-        ),
-      );
+      const fountainLines = [
+        "すみかの おくで きよらかな いずみを みつけた。",
+        `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
+        ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
+      ];
+      if (!state.tabletFound) {
+        state.tabletFound = true;
+        fountainLines.push(
+          "",
+          "いずみの ほとりに、ふるびた せきひが たっている……。",
+          "",
+          TABLET_TEXT,
+        );
+      }
+      fountainLines.push("（この さきから だいまおうの けはいが する……じゅんびは いいか）");
+      return okText(maybeTelepathy(fountainLines.join("\n")));
     }
     if (random() < 0.7) {
       const pool = state.lairDepth === 1 ? [virus, droplet] : [droplet, variant];
@@ -1465,7 +1496,7 @@ ${artHtml}
           "くすりや「いらっしゃい！ からだを まもる くすりの みせ だよ。」",
           "",
           `・かぜぐすり　${MEDICINE_PRICE}ゴールド`,
-          "　せつめい: インフルエンザを なおす のみぐすり。せんとうちゅうでも のめる（3 こまで）",
+          "　せつめい: インフルエンザを なおし、HP を 20 かいふくする のみぐすり。せんとうちゅうでも のめる（3 こまで）",
           `・ワクチン　${VACCINE_PRICE}ゴールド`,
           "　せつめい: せっしゅすると「たいせい」が つき、かんせんを 3 かい ふせぐ",
           "",
@@ -1526,16 +1557,16 @@ ${artHtml}
     state.medicineCount -= 1;
     notifyMedicineAvailabilityChange(medicineCountBefore);
     const lines = [`かぜぐすりを のんだ！（のこり ${state.medicineCount} こ）`];
+    const heal = Math.min(20, state.maxHp - state.hp);
+    state.hp += heal;
     if (state.infected) {
       state.infected = false;
-      const heal = Math.min(8, state.maxHp - state.hp);
-      state.hp += heal;
       lines.push("インフルエンザが なおった！ からだが かるい！");
-      if (heal > 0) {
-        lines.push(`HP も ${heal} かいふくした！（HP ${state.hp}/${state.maxHp}）`);
-      }
-    } else {
-      lines.push("……とくに かわらない。けんこうな からだに くすりは きかないようだ。");
+    }
+    if (heal > 0) {
+      lines.push(`HP が ${heal} かいふくした！（HP ${state.hp}/${state.maxHp}）`);
+    } else if (!lines[1]) {
+      lines.push("からだは もう げんきいっぱいだ。");
     }
     if (state.inBattle) {
       lines.push(enemyAttackLine());
@@ -1637,6 +1668,30 @@ ${artHtml}
         return okText(secretResult);
       } catch {
         return errorText("でんせつの じゅもんが みだれた。もういちど ためしてくれ。");
+      }
+    }
+    if (normalizedJumon.includes("ふるいけやかわずとびこむみずのおとばしや")) {
+      try {
+        const basho = persistTransaction(() => {
+          state.level = 10;
+          state.exp = 999999;
+          state.maxHp = maxHpForLevel(10);
+          state.hp = state.maxHp;
+          state.gold = 15143;
+          if (state.startedAtMs === 0) {
+            state.startedAtMs = now();
+          }
+          return [
+            "ふっかつのじゅもんが うけいれられた！",
+            "",
+            "ふるい いけの ほとりで、みずおとと ともに ちからが よみがえる……。",
+            "レベルが 10 に あがった！（HP " + state.hp + "/" + state.maxHp + "）",
+            "15143ゴールド を てにいれた！",
+          ].join("\n");
+        });
+        return okText(basho);
+      } catch {
+        return errorText("じゅもんが みだれた。もういちど ためしてくれ。");
       }
     }
     try {
