@@ -346,7 +346,7 @@ test("lair encounters can mutate into stronger enemies", () => {
   const engine = newEngine();
   engine.state.exp = 8;
   engine.state.location = "lair";
-  engine.state.lairDepth = 0;
+  engine.state.lairDepth = 1;
   const result = engine.handleExplore();
   assert.match(text(result), /とつぜんへんい/);
   assert.equal(engine.state.enemy.name, "へんいした ウイルスりゅうし");

@@ -26,6 +26,7 @@ export const infectionChanceByArmor = {
   かんせんたいさくスーツ: 0.05,
 } as const;
 export const enemyNames = [
+  "くしゃみこぞう",
   "ウイルスりゅうし",
   "せきしぶき",
   "へんいかぶ",

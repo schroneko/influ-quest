@@ -98,6 +98,16 @@ export type EngineIO = {
 
 const expTable = [0, 8, 25, 60, 120];
 
+const sneeze: Enemy = {
+  name: "くしゃみこぞう",
+  hp: 6,
+  maxHp: 6,
+  attack: 2,
+  exp: 6,
+  gold: 8,
+  boss: false,
+  rounds: 0,
+};
 const virus: Enemy = {
   name: "ウイルスりゅうし",
   hp: 8,
@@ -312,6 +322,16 @@ const FAN_TELEPATHY_LINES = [
   "（ちょまどです…C# は いいぞ…と つたえたくて…）",
 ];
 
+export function floorLabel(depth: number): string {
+  if (depth <= 0) {
+    return "いりぐち";
+  }
+  if (depth >= 5) {
+    return "さいかそう";
+  }
+  return `ちか${depth}かい`;
+}
+
 export type Engine = ReturnType<typeof createEngine>;
 
 export function createEngine(initial: { state: GameState; gameLog: string[] }, io: EngineIO = {}) {
@@ -436,7 +456,7 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
       `じょうたい: ${state.infected ? "インフルエンザ！" : "けんこう"}`,
       `ゴールド: ${state.gold}`,
       `けいけんち: ${state.exp}`,
-      `いま いる ばしょ: ${locationDisplayNames[state.location]}${state.location === "lair" ? `（ふかさ ${state.lairDepth}）` : ""}`,
+      `いま いる ばしょ: ${locationDisplayNames[state.location]}${state.location === "lair" ? `（${floorLabel(state.lairDepth)}）` : ""}`,
     ];
     if (state.inBattle && state.enemy) {
       lines.push(
@@ -535,7 +555,7 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
       ${flags.map((flag) => `<br><span class="flag">${esc(flag)}</span>`).join("")}
     </div>
     <div class="win place">
-      <div>${esc(locationDisplayNames[state.location])}${state.location === "lair" ? `　ふかさ ${state.lairDepth}` : ""}</div>
+      <div>${esc(locationDisplayNames[state.location])}${state.location === "lair" ? `　${floorLabel(state.lairDepth)}` : ""}</div>
       ${enemyHtml}
     </div>
   </div>
@@ -879,7 +899,7 @@ ${artHtml}
   }
 
   function startAdventureText(): string {
-    const depth = state.location === "lair" ? `（ふかさ ${state.lairDepth}）` : "";
+    const depth = state.location === "lair" ? `（${floorLabel(state.lairDepth)}）` : "";
     return [
       `${state.heroName}の ぼうけんは つづいている。`,
       `いま いる ばしょ: ${locationDisplayNames[state.location]}${depth}`,
@@ -1208,7 +1228,7 @@ ${artHtml}
     state.lairDepth += 1;
     if (state.lairDepth === 1 && state.exp === 0 && !state.bossDefeated) {
       return okText(
-        drain + `すみかを すすんだ……（ふかさ ${state.lairDepth}）\n\n` + startBattle(virus),
+        drain + `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n\n` + startBattle(virus),
       );
     }
     if (state.lairDepth >= 5) {
@@ -1255,7 +1275,12 @@ ${artHtml}
       return okText(maybeTelepathy(fountainLines.join("\n")));
     }
     if (random() < 0.7) {
-      const pool = state.lairDepth === 1 ? [virus, droplet] : [droplet, variant];
+      const pool =
+        state.lairDepth === 1
+          ? [sneeze, virus]
+          : state.lairDepth === 2
+            ? [virus, droplet]
+            : [droplet, variant];
       let enemy: Enemy = { ...pick(pool) };
       let intro = "";
       const mutatedName = mutatedNames[enemy.name];
@@ -1273,7 +1298,10 @@ ${artHtml}
         intro = "くうきが ぴりぴり する……とつぜんへんいの けはいだ！\n\n";
       }
       return okText(
-        drain + `すみかを すすんだ……（ふかさ ${state.lairDepth}）\n\n` + intro + startBattle(enemy),
+        drain +
+          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n\n` +
+          intro +
+          startBattle(enemy),
       );
     }
     const gold = randInt(5, 20);
@@ -1281,7 +1309,7 @@ ${artHtml}
     return okText(
       maybeTelepathy(
         drain +
-          `すみかを すすんだ……（ふかさ ${state.lairDepth}）\nたからばこを みつけた！ ${gold}ゴールド を てにいれた！`,
+          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\nたからばこを みつけた！ ${gold}ゴールド を てにいれた！`,
       ),
     );
   }

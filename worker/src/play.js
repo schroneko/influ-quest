@@ -329,6 +329,7 @@ const ENEMY_IMAGE_MAP = {
   "へんいした へんいかぶ": "mutated-variant",
   "へんいかぶの おやだま": "variant-boss",
   インフルだいまおう: "influenza-lord",
+  くしゃみこぞう: "virus-particle",
 };
 
 function pickImage(state, reply) {
@@ -1329,11 +1330,13 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   }
 
   let composedReply = composeGameReply(gameTexts, replyText, message);
+  const FABRICATION_PATTERN =
+    /あらわれた|ダメージ|のこり HP|HP ?[0-9]|たおした|レベルが|けいけんち|てにいれた|そうびした|クリア|エンディング|ゲームオーバー/;
   if (
     gameTexts.length === 0 &&
-    !engine.state.cleared &&
     composedReply &&
-    /クリア|エンディング/.test(composedReply)
+    FABRICATION_PATTERN.test(composedReply) &&
+    !/かいますか/.test(composedReply)
   ) {
     composedReply = toolResultText(engine.handleStartAdventure());
   }
