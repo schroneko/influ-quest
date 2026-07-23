@@ -574,7 +574,7 @@ test("rta clear responds with a share url and post-ending suggestions", async ()
   const response = await handleChat(createChatRequest("爆速RTA"), createChatEnv(), undefined, store);
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.match(body.shareUrl, /^https:\/\/x\.com\/intent\/post\?text=/);
+  assert.match(body.shareUrl, /^https:\/\/x\.com\/intent\/tweet\?text=/);
   assert.ok(!body.suggestions.includes("みせを でる"));
   assert.ok(body.suggestions.includes("ちょまどひめと はなす"));
 });

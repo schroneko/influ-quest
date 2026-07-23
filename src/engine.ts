@@ -237,7 +237,7 @@ export const MEDICINE_PRICE = 30;
 export const VACCINE_PRICE = 100;
 
 const shareUrlFor = (text: string): string =>
-  `https://x.com/intent/post?text=${encodeURIComponent(
+  `https://x.com/intent/tweet?text=${encodeURIComponent(
     [text, "https://influ-quest.nukoevi.app/play"].join("\n"),
   )}`;
 export const SHARE_URL = shareUrlFor(

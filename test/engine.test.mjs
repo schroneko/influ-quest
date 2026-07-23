@@ -48,14 +48,14 @@ test("resumed cleared sessions include the matching share link", () => {
   fresh.state.heroName = "てすと";
   fresh.state.hostGreeted = true;
   const ongoing = text(fresh.handleStartAdventure());
-  assert.doesNotMatch(ongoing, /x\.com\/intent\/post/);
+  assert.doesNotMatch(ongoing, /x\.com\/intent\/tweet/);
 });
 
 test("each ending carries its own share link", () => {
   const urls = [SHARE_URL, SHARE_URL_BADEND, SHARE_URL_DOOM, SHARE_URL_RTA, SHARE_URL_SECRET];
   assert.equal(new Set(urls).size, urls.length);
   for (const url of urls) {
-    assert.match(url, /^https:\/\/x\.com\/intent\/post\?text=/);
+    assert.match(url, /^https:\/\/x\.com\/intent\/tweet\?text=/);
   }
 });
 
@@ -146,7 +146,7 @@ test("boss battle leads to princess rescue and true ending", async () => {
   const ending = await engine.handleTalk();
   assert.match(text(ending), /クリア/);
   assert.match(text(ending), /おだいじに/);
-  assert.match(text(ending), /x\.com\/intent\/post/);
+  assert.match(text(ending), /x\.com\/intent\/tweet/);
   assert.equal(engine.state.cleared, true);
   assert.equal(engine.state.princessCarried, false);
 });
