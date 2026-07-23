@@ -4,6 +4,7 @@ import {
   createInitialState,
   encodeJumon,
   infectionChanceByArmor,
+  katakanaToHiragana,
   maxHeroNameCodePoints,
   maxHpForLevel,
   maxJumonLength,
@@ -846,6 +847,11 @@ ${artHtml}
         "ぬこぬこひめ「なつかぜは もう すっかり なおったよ。おにいちゃんの おかげ。ありがとう！」",
       );
     }
+    if (state.princessTalkCount < 3) {
+      return errorText(
+        "てんの こえ「なにかが うごきだす けはいが する……ちょまどひめと もっと はなして みるのだ。」",
+      );
+    }
     if (state.startedAtMs === 0) {
       state.startedAtMs = now();
     }
@@ -1200,14 +1206,16 @@ ${artHtml}
         return okText(trueEnd());
       }
       if (state.cleared) {
-        if (!state.natsuKazeDefeated) {
+        state.princessTalkCount += 1;
+        if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
           return okText(
             [
-              "ちょまどひめ「ゆうしゃさま……じつは、きに なることが あるのです。",
+              "ちょまどひめ「ゆうしゃさま……なんども きて くださるのですね。",
+              "じつは、きに なることが あるのです。",
               "ゲームマスターの ぬこぬこさまが、さっきから ねつっぽくて うなされて いるみたいで……」",
               "",
-              "（なにか うらに かくされた たたかいが ある かもしれない。",
-              "『なつかぜだいまおうに いどむ』と となえて みよう……）",
+              "（うらに かくされた たたかいの よかんが する。",
+              "『うでだめしを する』と となえて みよう……）",
             ].join("\n"),
           );
         }
@@ -1798,10 +1806,11 @@ ${artHtml}
     if (Array.from(normalizedSpell).length > maxSpellLength) {
       return errorText("じゅもんは 1〜64 もじで、みえない もじは つかえない。");
     }
-    if (normalizedSpell.includes("ぱんでみっく")) {
+    const spellKey = katakanaToHiragana(normalizedSpell);
+    if (spellKey.includes("ぱんでみっく")) {
       return okText(cheatClear());
     }
-    if (normalizedSpell.includes("ちょまど")) {
+    if (spellKey.includes("ちょまど")) {
       state.fanMode = !state.fanMode;
       if (state.fanMode) {
         return okText(
@@ -1815,7 +1824,7 @@ ${artHtml}
       }
       return okText("ちょまどファンモードを OFF にした。すこし さみしい きもちに なった。");
     }
-    if (normalizedSpell.includes("うがい") || normalizedSpell.includes("てあらい")) {
+    if (spellKey.includes("うがい") || spellKey.includes("てあらい")) {
       let result: string;
       if (state.hp >= state.maxHp) {
         result = `${normalizedSpell}！ しかし HP は まんたんだ。`;
@@ -1844,10 +1853,10 @@ ${artHtml}
     if (jumon.trim().length === 0 || jumon.trim().length > maxJumonLength) {
       return errorText("じゅもんが ながすぎる。");
     }
-    const normalizedJumon = jumon
-      .normalize("NFKC")
-      .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
-      .replace(/[\s「」『』、。・!！?？]/g, "");
+    const normalizedJumon = katakanaToHiragana(jumon.normalize("NFKC")).replace(
+      /[\s「」『』、。・!！?？]/g,
+      "",
+    );
     if (normalizedJumon.includes("てあらいうがいわくちん")) {
       if (
         state.level >= 5 &&

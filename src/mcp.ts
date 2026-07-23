@@ -318,8 +318,9 @@ export function createGameServer(options: GameServerOptions = {}): {
     challengeSecretBoss: server.registerTool(
       "challenge_secret_boss",
       {
-        title: "うらボスにいどむ",
-        description: "クリアご、かくされた うらボス「なつかぜだいまおう」に いどむ",
+        title: "うでだめしをする",
+        description:
+          "クリアご、ちょまどひめと 3 かい はなすと ひらかれる うでだめし。かくされた うらボスに いどむ",
       },
       withSafety(() => game().handleChallengeSecretBoss()),
     ),
@@ -358,7 +359,10 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.medicine, state.medicineCount > 0);
     setEnabled(tools.fukkatsu, !battle);
     setEnabled(tools.answerHost, !battle && state.hostAsking);
-    setEnabled(tools.challengeSecretBoss, !battle && state.cleared && !state.natsuKazeDefeated);
+    setEnabled(
+      tools.challengeSecretBoss,
+      !battle && state.cleared && !state.natsuKazeDefeated && state.princessTalkCount >= 3,
+    );
   }
 
   server.registerResource(

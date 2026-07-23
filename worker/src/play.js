@@ -253,8 +253,8 @@ function buildSuggestions(state, sceneText) {
   };
   if (state.cleared) {
     add("ちょまどひめと はなす");
-    if (!state.natsuKazeDefeated) {
-      add("なつかぜだいまおうに いどむ");
+    if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
+      add("うでだめしを する");
     }
     add("はじめから やりなおす");
     return options;
@@ -506,7 +506,10 @@ export function routeDirectCommand(state, rawMessage) {
   if (
     state.cleared &&
     !state.natsuKazeDefeated &&
-    (msg.includes("なつかぜ") || msg.includes("うらボス") || msg.includes("うらぼす"))
+    (msg.includes("うでだめし") ||
+      msg.includes("なつかぜ") ||
+      msg.includes("うらボス") ||
+      msg.includes("うらぼす"))
   ) {
     return [{ action: "challenge_secret_boss" }];
   }
@@ -2323,7 +2326,8 @@ const PLAY_PAGE = String.raw`<!doctype html>
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;
         await queueTypewrite(shownReply);
-        if (data.cleared && !wasCleared) {
+        const isDoomEnding = /チートクリア|せかいは ほろんだ/.test(data.reply);
+        if (data.cleared && !wasCleared && !isDoomEnding) {
           wasCleared = true;
           showCredits(data.hud && data.hud.name, () => {
             if (shareMatch) {

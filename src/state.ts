@@ -72,6 +72,10 @@ export function normalizeHeroName(value: string): string {
   return normalized;
 }
 
+export function katakanaToHiragana(value: string): string {
+  return value.replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
+
 export function normalizeSpellText(value: string): string {
   const normalized = normalizeText(value);
   if (normalized.length === 0) {
@@ -145,6 +149,7 @@ const gameStateFields = {
   cleared: z.boolean(),
   cheatCleared: z.boolean(),
   natsuKazeDefeated: z.boolean().default(false),
+  princessTalkCount: integerRange(0, 999).default(0),
   fanMode: z.boolean().default(false),
   inBattle: z.boolean(),
   enemy: enemySchema.nullable(),
@@ -364,6 +369,7 @@ function extractGameStateFromSaveFile(saveFile: SaveFileV1): GameState {
     cleared: saveFile.cleared,
     cheatCleared: saveFile.cheatCleared,
     natsuKazeDefeated: saveFile.natsuKazeDefeated,
+    princessTalkCount: saveFile.princessTalkCount,
     fanMode: saveFile.fanMode,
     inBattle: saveFile.inBattle,
     enemy: saveFile.enemy,
@@ -629,6 +635,7 @@ function buildDecodedJumonState(fields: {
     cleared: fields.cleared,
     cheatCleared: fields.cheatCleared,
     natsuKazeDefeated: false,
+    princessTalkCount: 0,
     fanMode: fields.fanMode,
     inBattle: false,
     enemy: null,

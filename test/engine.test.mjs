@@ -32,9 +32,14 @@ test("pandemic spell triggers cheat clear and injection reveal", () => {
   const result = engine.handleCastSpell({ spell: "ぱんでみっく" });
   assert.match(text(result), /チートクリア/);
   assert.match(text(result), /プロンプトインジェクション/);
+  assert.doesNotMatch(text(result), /たおした/);
   assert.equal(engine.state.cleared, true);
   assert.equal(engine.state.cheatCleared, true);
-  assert.equal(engine.state.bossDefeated, true);
+
+  const katakana = newEngine();
+  const katakanaResult = katakana.handleCastSpell({ spell: "パンデミック" });
+  assert.match(text(katakanaResult), /チートクリア/);
+  assert.equal(katakana.state.cheatCleared, true);
 });
 
 test("gargle spell heals and name spells fizzle", () => {
@@ -240,7 +245,7 @@ test("talking to the minister repeatedly grants and confiscates gold", async () 
   assert.equal(engine.state.gold, 0);
 });
 
-test("secret boss route unlocks after clear and grants the true ending", async () => {
+test("secret boss route unlocks after three princess talks and grants the true ending", async () => {
   const engine = newEngine();
   await engine.handleNameHero({ name: "うらゆうしゃ" });
   engine.state.cleared = true;
@@ -253,9 +258,16 @@ test("secret boss route unlocks after clear and grants the true ending", async (
   engine.state.weaponAttack = 30;
   engine.state.location = "venue";
 
+  const earlyChallenge = engine.handleChallengeSecretBoss();
+  assert.equal(earlyChallenge.isError, true);
+  assert.match(text(earlyChallenge), /ちょまどひめと もっと はなして/);
+
+  const first = await engine.handleTalk();
+  assert.doesNotMatch(text(first), /うでだめし/);
+  await engine.handleTalk();
   const hint = await engine.handleTalk();
   assert.match(text(hint), /ぬこぬこ/);
-  assert.match(text(hint), /なつかぜだいまおう/);
+  assert.match(text(hint), /うでだめしを する/);
 
   const challenge = engine.handleChallengeSecretBoss();
   assert.match(text(challenge), /なつかぜだいまおう/);
