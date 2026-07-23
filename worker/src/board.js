@@ -564,6 +564,14 @@ const PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>インフルクエスト 会場ボード</title>
+<meta name="description" content="インフルクエストのリーダーボード。勇者たちの冒険をリアルタイムで見守ろう">
+<link rel="icon" type="image/png" href="/favicon.png">
+<meta property="og:title" content="インフルクエスト 会場ボード">
+<meta property="og:description" content="インフルクエストのリーダーボード。勇者たちの冒険をリアルタイムで見守ろう">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://influ-quest.nukoevi.app/">
+<meta property="og:image" content="https://influ-quest.nukoevi.app/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">

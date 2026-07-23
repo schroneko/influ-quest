@@ -1394,6 +1394,14 @@ const PLAY_PAGE = String.raw`<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>インフルクエスト ブラウザ版</title>
+<meta name="description" content="インフルだいまおうにさらわれたちょまどひめを助けに行く、ブラウザで遊べるレトロ風テキスト RPG">
+<link rel="icon" type="image/png" href="/favicon.png">
+<meta property="og:title" content="インフルクエスト">
+<meta property="og:description" content="インフルだいまおうにさらわれたちょまどひめを助けに行く、ブラウザで遊べるレトロ風テキスト RPG">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://influ-quest.nukoevi.app/play">
+<meta property="og:image" content="https://influ-quest.nukoevi.app/assets/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
