@@ -236,20 +236,20 @@ function buildSuggestions(state, sceneText) {
   const fill = () => {
     add(state.location === "venue" ? "まもりのまちへ いく" : "まもりのまちへ もどる");
   };
-  if (state.cleared) {
-    add("ちょまどひめと はなす");
-    if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
-      add("うでだめしを する");
-    }
-    add("はじめから やりなおす");
-    return options;
-  }
   if (state.inBattle) {
     add("たたかう");
     add("にげる");
     if (state.medicineCount > 0) {
       add("かぜぐすりを のむ");
     }
+    return options;
+  }
+  if (state.cleared) {
+    add("ちょまどひめと はなす");
+    if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
+      add("うでだめしを する");
+    }
+    add("はじめから やりなおす");
     return options;
   }
   if (state.hostAsking) {
@@ -322,17 +322,17 @@ function pickImage(state, reply) {
   if (reply.includes("＊＊ ゲームオーバー ＊＊")) {
     return `${base}/characters/doctor.webp`;
   }
-  if (state.cleared || state.cheatCleared) {
-    return `${base}/scenes/ending-celebration.webp`;
-  }
   if (state.inBattle && state.enemy) {
-    if (state.enemy.boss && state.enemy.attack > 11) {
+    if (state.enemy.name === "インフルだいまおう" && state.enemy.attack > 11) {
       return `${base}/enemies/influenza-lord-mutated.webp`;
     }
     const file = ENEMY_IMAGE_MAP[state.enemy.name];
     if (file) {
       return `${base}/enemies/${file}.webp`;
     }
+  }
+  if (state.cleared || state.cheatCleared) {
+    return `${base}/scenes/ending-celebration.webp`;
   }
   if (state.hostAsking) {
     return `${base}/enemies/influenza-lord.webp`;

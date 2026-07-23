@@ -471,6 +471,46 @@ test("つよさを みる direct route returns the status text without a model c
   assert.match(body.reply, /＊＊ つよさ ＊＊/);
 });
 
+test("secret boss battle shows battle commands and the natsukaze image", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({
+      heroName: "てすと",
+      hostGreeted: true,
+      cleared: true,
+      bossDefeated: true,
+      princessTalkCount: 3,
+      inBattle: true,
+      enemy: {
+        name: "なつかぜだいまおう",
+        hp: 200,
+        maxHp: 200,
+        attack: 13,
+        exp: 200,
+        gold: 500,
+        boss: true,
+        rounds: 0,
+      },
+      level: 5,
+      exp: 120,
+      maxHp: 62,
+      hp: 62,
+      weapon: "でんせつのワクチンソード",
+      weaponAttack: 30,
+      armor: "かんせんたいさくスーツ",
+      armorDefense: 7,
+    }),
+  });
+  const response = await handleChat(createChatRequest("たたかう"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(body.suggestions.includes("たたかう"));
+  assert.doesNotMatch(body.suggestions.join("/"), /ちょまどひめ|うでだめし|やりなおす/);
+  assert.match(body.image, /natsukaze-lord/);
+});
+
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";
