@@ -2045,6 +2045,24 @@ const PLAY_PAGE = String.raw`<!doctype html>
       localStorage.setItem(sessionKey, sessionId);
     } catch {}
   }
+  const PAGE_BUILD = "b20260724a";
+  const clientLog = (payload) => {
+    try {
+      void fetch("/api/client-log", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ build: PAGE_BUILD, session: sessionId.slice(0, 8), ...payload }),
+        keepalive: true,
+      });
+    } catch {}
+  };
+  window.addEventListener("error", (event) => {
+    clientLog({ event: "jserror", message: String(event.message || "").slice(0, 200) });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    clientLog({ event: "unhandledrejection", message: String(event.reason || "").slice(0, 200) });
+  });
+  clientLog({ event: "load" });
   const scrollDown = () => {
     log.scrollTop = log.scrollHeight;
   };
@@ -2445,6 +2463,12 @@ const PLAY_PAGE = String.raw`<!doctype html>
         updateEnemy(data.hud && data.hud.enemy);
         const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/);
         renderShareSlot(data.shareUrl || (shareMatch ? shareMatch[0] : null));
+        clientLog({
+          event: "reply",
+          cleared: data.cleared === true,
+          shareUrl: Boolean(data.shareUrl || shareMatch),
+          slotHidden: shareSlot.hidden,
+        });
         const shownReply = shareMatch
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;

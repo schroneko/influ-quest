@@ -128,6 +128,14 @@ export default {
     if (url.pathname === "/api/chat") {
       return routeChatRequest(request, env);
     }
+    if (url.pathname === "/api/client-log") {
+      if (request.method !== "POST") {
+        return new Response(null, { status: 405 });
+      }
+      const body = await request.text().catch(() => "");
+      console.log("client log:", body.slice(0, 1000));
+      return new Response(null, { status: 204 });
+    }
     return board.fetch(request, env);
   },
 };
