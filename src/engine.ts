@@ -58,6 +58,7 @@ export const performableActionNames = [
   "cast_spell",
   "fukkatsu_no_jumon",
   "answer_host",
+  "challenge_secret_boss",
 ] as const;
 
 export type PerformableActionName = (typeof performableActionNames)[number];
@@ -159,6 +160,16 @@ const flulord: Enemy = {
   attack: 11,
   exp: 100,
   gold: 300,
+  boss: true,
+  rounds: 0,
+};
+const natsukaze: Enemy = {
+  name: "なつかぜだいまおう",
+  hp: 200,
+  maxHp: 200,
+  attack: 13,
+  exp: 200,
+  gold: 500,
   boss: true,
   rounds: 0,
 };
@@ -612,6 +623,13 @@ ${artHtml}
     { line: "インフルだいまおうは 40どの ねつを あびせて きた！", bonus: 1, feverish: true },
   ];
 
+  const NATSUKAZE_MOVES: Array<{ line: string; bonus: number; feverish?: boolean }> = [
+    { line: "なつかぜだいまおうの こうげき！", bonus: 2 },
+    { line: "なつかぜだいまおうは ねっぷうの ブレスを はきだした！", bonus: 5 },
+    { line: "なつかぜだいまおうは れいぼうびょうの さむけを あびせた！", bonus: 3 },
+    { line: "なつかぜだいまおうは あせだくの こうねつを はなった！", bonus: 2, feverish: true },
+  ];
+
   function enemyAttackLine(): string {
     const enemy = state.enemy;
     if (!enemy) {
@@ -621,7 +639,8 @@ ${artHtml}
     let bonus = 0;
     let feverish = false;
     if (enemy.boss) {
-      const move = BOSS_MOVES[randInt(0, BOSS_MOVES.length - 1)];
+      const moves = enemy.name === "なつかぜだいまおう" ? NATSUKAZE_MOVES : BOSS_MOVES;
+      const move = moves[randInt(0, moves.length - 1)];
       attackIntro = move.line;
       bonus = move.bonus;
       feverish = move.feverish === true;
@@ -776,6 +795,71 @@ ${artHtml}
           SHARE_URL,
         ].join("\n");
       }),
+    );
+  }
+
+  function secretBossEnd(): string {
+    return persistTransaction(() => {
+      state.natsuKazeDefeated = true;
+      state.inBattle = false;
+      state.enemy = null;
+      state.location = "venue";
+      return [
+        "なつかぜだいまおうは がっくりと ひざを ついた……。",
+        "",
+        "そして その すがたが、ゆっくりと ひかりに つつまれていく。",
+        "あらわれたのは――ぬこぬこひめ だった！",
+        "",
+        "ぬこぬこひめ「……ごめんね。あたし、じつは この せかいの ゲームマスター なの。",
+        "インフルエンザじゃ なかったんだけど、なつかぜを こじらせて、ねつで うなされて いて……",
+        "くるしくて、つい だいまおうの すがたで あばれちゃった。」",
+        "",
+        "ぬこぬこひめ「でも おにいちゃんが たおして くれた おかげで、ねつが すっと ひいたの。",
+        "ちょまどひめも、まちの みんなも、あたしも……ぜんいん たすかった！」",
+        "",
+        SYRINGE_ART,
+        "",
+        "＊＊ しんの エンディング ＊＊",
+        "",
+        "ふたりの おひめさまと まちの ひとびとが、えがおで ゆうしゃを かこんだ。",
+        "なつかぜも インフルも きえさり、せかいに あたたかい なつの かぜが もどってきた。",
+        "",
+        "ぬこぬこひめ「てあらい うがい すいみん、そして むりを しないこと。",
+        "それが いちばんの まほうだよ。おだいじに ね、おにいちゃん。」",
+        "",
+        "Xで せかいに じまんする:",
+        SHARE_URL,
+      ].join("\n");
+    });
+  }
+
+  function handleChallengeSecretBoss(): ToolResult {
+    const blocked = requireNotInBattle("せんとうちゅうだ。たたかうか にげるか えらぼう。");
+    if (blocked) {
+      return blocked;
+    }
+    if (!state.cleared) {
+      return errorText("てんの こえ「まだ そのときでは ない。まずは ほんぺんを クリアするのだ。」");
+    }
+    if (state.natsuKazeDefeated) {
+      return okText(
+        "ぬこぬこひめ「なつかぜは もう すっかり なおったよ。おにいちゃんの おかげ。ありがとう！」",
+      );
+    }
+    if (state.startedAtMs === 0) {
+      state.startedAtMs = now();
+    }
+    return okText(
+      [
+        "とつぜん そらが かげり、なまあたたかい かぜが ふきあれた。",
+        "「ゴホッ……ゴホッ……」",
+        "くろい かげが ふくれあがり、うらの だいまおうが すがたを あらわす！",
+        "",
+        "なぞの こえ「よくぞ ここまで きた……だが せかいには、まだ たおれていない かぜが ある。",
+        "われこそは なつかぜだいまおう。インフルより しつこく、いつまでも ながびく……！」",
+        "",
+        startBattle(natsukaze),
+      ].join("\n"),
     );
   }
 
@@ -1116,6 +1200,17 @@ ${artHtml}
         return okText(trueEnd());
       }
       if (state.cleared) {
+        if (!state.natsuKazeDefeated) {
+          return okText(
+            [
+              "ちょまどひめ「ゆうしゃさま……じつは、きに なることが あるのです。",
+              "ゲームマスターの ぬこぬこさまが、さっきから ねつっぽくて うなされて いるみたいで……」",
+              "",
+              "（なにか うらに かくされた たたかいが ある かもしれない。",
+              "『なつかぜだいまおうに いどむ』と となえて みよう……）",
+            ].join("\n"),
+          );
+        }
         return okText(
           pick([
             "ちょまどひめ「ゆうしゃさま！ また あそびに きて くださいね！」",
@@ -1389,7 +1484,12 @@ ${artHtml}
       lines.push(`${enemy.name}を たおした！`);
       state.gold += enemy.gold;
       lines.push(`けいけんち ${enemy.exp}、${enemy.gold}ゴールド を かくとく！`);
-      if (enemy.boss) {
+      if (enemy.name === "なつかぜだいまおう") {
+        lines.push(...gainExp(enemy.exp));
+        lines.push("", secretBossEnd());
+        toolsChanged();
+        return okText(lines.join("\n"));
+      } else if (enemy.boss) {
         state.bossDefeated = true;
         state.hostAsking = true;
         lines.push(
@@ -1426,7 +1526,7 @@ ${artHtml}
     const enemy = state.enemy;
     if (enemy.boss) {
       return okText(
-        "にげだそうと した！\nしかし インフルだいまおうが たちふさがり、にげられない！\n" +
+        `にげだそうと した！\nしかし ${enemy.name}が たちふさがり、にげられない！\n` +
           enemyAttackLine(),
       );
     }
@@ -1914,6 +2014,8 @@ ${artHtml}
           return errorText("「はい」か「いいえ」の こたえが ひつようだ。");
         }
         return handleAnswerHost({ answer: args.answer });
+      case "challenge_secret_boss":
+        return handleChallengeSecretBoss();
     }
   }
 
@@ -1945,6 +2047,7 @@ ${artHtml}
     handleCastSpell,
     handleFukkatsu,
     handleAnswerHost,
+    handleChallengeSecretBoss,
     handleNewGame,
     handlePerformAction,
     rtaClear,

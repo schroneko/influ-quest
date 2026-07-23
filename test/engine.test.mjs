@@ -240,6 +240,51 @@ test("talking to the minister repeatedly grants and confiscates gold", async () 
   assert.equal(engine.state.gold, 0);
 });
 
+test("secret boss route unlocks after clear and grants the true ending", async () => {
+  const engine = newEngine();
+  await engine.handleNameHero({ name: "うらゆうしゃ" });
+  engine.state.cleared = true;
+  engine.state.bossDefeated = true;
+  engine.state.level = 5;
+  engine.state.exp = 120;
+  engine.state.maxHp = 62;
+  engine.state.hp = 62;
+  engine.state.weapon = "でんせつのワクチンソード";
+  engine.state.weaponAttack = 30;
+  engine.state.location = "venue";
+
+  const hint = await engine.handleTalk();
+  assert.match(text(hint), /ぬこぬこ/);
+  assert.match(text(hint), /なつかぜだいまおう/);
+
+  const challenge = engine.handleChallengeSecretBoss();
+  assert.match(text(challenge), /なつかぜだいまおう/);
+  assert.equal(engine.state.inBattle, true);
+  assert.equal(engine.state.enemy.name, "なつかぜだいまおう");
+  assert.equal(engine.state.enemy.maxHp, 200);
+
+  let last = "";
+  while (engine.state.inBattle) {
+    last = text(engine.handleAttack());
+  }
+  assert.match(last, /ぬこぬこひめ/);
+  assert.match(last, /しんの エンディング/);
+  assert.match(last, /x\.com\/intent\/post/);
+  assert.equal(engine.state.natsuKazeDefeated, true);
+  assert.equal(engine.state.cleared, true);
+
+  const blocked = engine.handleChallengeSecretBoss();
+  assert.match(text(blocked), /なおった/);
+});
+
+test("secret boss cannot be challenged before clearing", () => {
+  const engine = newEngine();
+  engine.state.heroName = "みくりあ";
+  const result = engine.handleChallengeSecretBoss();
+  assert.equal(result.isError, true);
+  assert.match(text(result), /ほんぺんを クリア/);
+});
+
 test("rtaClear instantly wins with a full clear state", () => {
   let t = 1000;
   const engine = createEngine(

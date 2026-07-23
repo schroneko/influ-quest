@@ -315,6 +315,14 @@ export function createGameServer(options: GameServerOptions = {}): {
       },
       withArgsSafety((args: { answer: "はい" | "いいえ" }) => game().handleAnswerHost(args)),
     ),
+    challengeSecretBoss: server.registerTool(
+      "challenge_secret_boss",
+      {
+        title: "うらボスにいどむ",
+        description: "クリアご、かくされた うらボス「なつかぜだいまおう」に いどむ",
+      },
+      withSafety(() => game().handleChallengeSecretBoss()),
+    ),
   };
 
   function refreshTools() {
@@ -350,6 +358,7 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.medicine, state.medicineCount > 0);
     setEnabled(tools.fukkatsu, !battle);
     setEnabled(tools.answerHost, !battle && state.hostAsking);
+    setEnabled(tools.challengeSecretBoss, !battle && state.cleared && !state.natsuKazeDefeated);
   }
 
   server.registerResource(

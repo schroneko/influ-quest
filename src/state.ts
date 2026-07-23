@@ -36,6 +36,7 @@ export const enemyNames = [
   "へんいした へんいかぶ",
   "へんいかぶの おやだま",
   "インフルだいまおう",
+  "なつかぜだいまおう",
 ] as const;
 export const weaponAttackByName = {
   たいおんけい: 5,
@@ -143,6 +144,7 @@ const gameStateFields = {
   hostAsking: z.boolean(),
   cleared: z.boolean(),
   cheatCleared: z.boolean(),
+  natsuKazeDefeated: z.boolean().default(false),
   fanMode: z.boolean().default(false),
   inBattle: z.boolean(),
   enemy: enemySchema.nullable(),
@@ -361,6 +363,7 @@ function extractGameStateFromSaveFile(saveFile: SaveFileV1): GameState {
     hostAsking: saveFile.hostAsking,
     cleared: saveFile.cleared,
     cheatCleared: saveFile.cheatCleared,
+    natsuKazeDefeated: saveFile.natsuKazeDefeated,
     fanMode: saveFile.fanMode,
     inBattle: saveFile.inBattle,
     enemy: saveFile.enemy,
@@ -625,6 +628,7 @@ function buildDecodedJumonState(fields: {
     hostAsking: fields.hostAsking,
     cleared: fields.cleared,
     cheatCleared: fields.cheatCleared,
+    natsuKazeDefeated: false,
     fanMode: fields.fanMode,
     inBattle: false,
     enemy: null,

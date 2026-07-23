@@ -253,6 +253,9 @@ function buildSuggestions(state, sceneText) {
   };
   if (state.cleared) {
     add("ちょまどひめと はなす");
+    if (!state.natsuKazeDefeated) {
+      add("なつかぜだいまおうに いどむ");
+    }
     add("はじめから やりなおす");
     return options;
   }
@@ -335,6 +338,7 @@ const ENEMY_IMAGE_MAP = {
   "へんいかぶの おやだま": "variant-boss",
   インフルだいまおう: "influenza-lord",
   くしゃみこぞう: "sneeze-kid",
+  なつかぜだいまおう: "influenza-lord-mutated",
 };
 
 function pickImage(state, reply) {
@@ -498,6 +502,13 @@ export function routeDirectCommand(state, rawMessage) {
   }
   if (msg === "つづきをあそぶ" || msg === "つづきから") {
     return [{ action: "start_adventure" }];
+  }
+  if (
+    state.cleared &&
+    !state.natsuKazeDefeated &&
+    (msg.includes("なつかぜ") || msg.includes("うらボス") || msg.includes("うらぼす"))
+  ) {
+    return [{ action: "challenge_secret_boss" }];
   }
   let match = msg.match(/^([^を]+)を(かう|うつ)$/);
   if (match) {
