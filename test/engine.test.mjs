@@ -322,7 +322,7 @@ test("secret boss route unlocks after three princess talks and grants the true e
   while (engine.state.inBattle) {
     last = text(engine.handleAttack());
   }
-  assert.match(last, /ぬこぬこひめ/);
+  assert.match(last, /ゲームマスターの ぬこぬこ/);
   assert.match(last, /しんの エンディング/);
   assert.ok(last.includes(SHARE_URL_SECRET));
   assert.equal(engine.state.natsuKazeDefeated, true);
@@ -351,6 +351,8 @@ test("rtaClear instantly wins with a full clear state", () => {
   assert.match(text(result), /クリア/);
   assert.ok(text(result).includes(SHARE_URL_RTA));
   assert.equal(engine.state.cleared, true);
+  assert.equal(engine.state.rtaCleared, true);
+  assert.equal(engine.snapshot().rtaCleared, true);
   assert.equal(engine.state.bossDefeated, true);
   assert.equal(engine.state.princessCarried, false);
   assert.ok(engine.state.clearMs > 0);

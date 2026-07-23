@@ -76,6 +76,7 @@ export type Snapshot = {
   location: string;
   cleared: boolean;
   cheatCleared: boolean;
+  rtaCleared: boolean;
   princessCarried: boolean;
   dragonDefeated: boolean;
   virusKing: boolean;
@@ -249,7 +250,7 @@ export const SHARE_URL_RTA = shareUrlFor(
   "爆速RTAでインフルだいまおうを 0.2 びょうで撃破！はやすぎる！ #AIDevDay",
 );
 export const SHARE_URL_SECRET = shareUrlFor(
-  "裏ボスなつかぜだいまおうも撃破！ふたりのひめを救って真エンディングに到達した！ #AIDevDay",
+  "裏ボスなつかぜだいまおうも撃破して、真エンディングに到達した！ #AIDevDay",
 );
 export const SHARE_URL_BADEND = shareUrlFor(
   "だいまおうの取引に応じたら、新たなインフルだいまおうになってしまった…… #AIDevDay",
@@ -456,6 +457,7 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
       location: locationDisplayNames[state.location],
       cleared: state.cleared,
       cheatCleared: state.cheatCleared,
+      rtaCleared: state.rtaCleared,
       princessCarried: state.princessCarried,
       dragonDefeated: state.bossDefeated,
       virusKing: state.virusKingEnded,
@@ -811,6 +813,7 @@ ${artHtml}
         state.hostGreeted = true;
         state.bossDefeated = true;
         state.cleared = true;
+        state.rtaCleared = true;
         state.princessCarried = false;
         state.hostAsking = false;
         state.inBattle = false;
@@ -867,24 +870,24 @@ ${artHtml}
         "なつかぜだいまおうは がっくりと ひざを つき、",
         "その すがたは きりのように ほどけて きえていった……。",
         "",
-        "そのとき、てんから ひとりの ひめが ゆっくりと おりてきた。",
-        "――ぬこぬこひめ だ！",
+        "そのとき、てんから だれかが ゆっくりと おりてきた。",
+        "――この せかいの ゲームマスター、ぬこぬこ だ！",
         "",
-        "ぬこぬこひめ「……ありがとう。あたし、じつは この せかいの ゲームマスター なの。",
+        "ゲームマスター「……ありがとう。あたしは ゲームマスターの ぬこぬこ。",
         "なつかぜを こじらせて ねつで うなされて いるうちに、",
         "その なつかぜが せかいの まりょくを すって、まものに なって ぬけだして いたの。」",
         "",
-        "ぬこぬこひめ「ゆうしゃさまが たおして くれた しゅんかん、ねつが すっと ひいたの。",
+        "ゲームマスター「ゆうしゃさまが たおして くれた しゅんかん、ねつが すっと ひいたの。",
         "ちょまどひめも、まちの みんなも、あたしも……ぜんいん たすかった！」",
         "",
         SYRINGE_ART,
         "",
         "＊＊ しんの エンディング ＊＊",
         "",
-        "ふたりの おひめさまと まちの ひとびとが、えがおで ゆうしゃを かこんだ。",
+        "ちょまどひめと まちの ひとびと、そして ゲームマスターが、えがおで ゆうしゃを かこんだ。",
         "なつかぜも インフルも きえさり、せかいに あたたかい なつの かぜが もどってきた。",
         "",
-        "ぬこぬこひめ「てあらい うがい すいみん、そして むりを しないこと。",
+        "ゲームマスター「てあらい うがい すいみん、そして むりを しないこと。",
         "それが いちばんの まほうだよ。おだいじに ね、ゆうしゃさま。」",
         "",
         "Xで せかいに じまんする:",
@@ -903,7 +906,7 @@ ${artHtml}
     }
     if (state.natsuKazeDefeated) {
       return okText(
-        "ぬこぬこひめ「なつかぜは もう すっかり なおったよ。ゆうしゃさまの おかげ。ありがとう！」",
+        "ゲームマスター「なつかぜは もう すっかり なおったよ。ゆうしゃさまの おかげ。ありがとう！」",
       );
     }
     if (state.princessTalkCount < 3) {

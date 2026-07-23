@@ -151,6 +151,7 @@ const gameStateFields = {
   hostAsking: z.boolean(),
   cleared: z.boolean(),
   cheatCleared: z.boolean(),
+  rtaCleared: z.boolean().default(false),
   natsuKazeDefeated: z.boolean().default(false),
   princessTalkCount: integerRange(0, 999).default(0),
   fanMode: z.boolean().default(false),
@@ -304,6 +305,7 @@ export const initialState: GameState = gameStateSchema.parse({
   hostAsking: false,
   cleared: false,
   cheatCleared: false,
+  rtaCleared: false,
   inBattle: false,
   enemy: null,
 });
@@ -377,6 +379,7 @@ function extractGameStateFromSaveFile(saveFile: SaveFileV1): GameState {
     hostAsking: saveFile.hostAsking,
     cleared: saveFile.cleared,
     cheatCleared: saveFile.cheatCleared,
+    rtaCleared: saveFile.rtaCleared,
     natsuKazeDefeated: saveFile.natsuKazeDefeated,
     princessTalkCount: saveFile.princessTalkCount,
     fanMode: saveFile.fanMode,

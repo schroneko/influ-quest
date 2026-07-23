@@ -50,6 +50,7 @@ const RECORD_FIELD_NAMES = new Set([
   "location",
   "cleared",
   "cheatCleared",
+  "rtaCleared",
   "princessCarried",
   "dragonDefeated",
   "virusKing",
@@ -57,6 +58,16 @@ const RECORD_FIELD_NAMES = new Set([
   "clearMs",
   "updatedAt",
 ]);
+const OPTIONAL_BOOLEAN_FIELDS = ["virusKing", "rtaCleared"];
+const withOptionalFieldDefaults = (candidate) => {
+  let filled = candidate;
+  for (const field of OPTIONAL_BOOLEAN_FIELDS) {
+    if (!(field in filled)) {
+      filled = { ...filled, [field]: false };
+    }
+  }
+  return filled;
+};
 const INCOMING_FIELD_NAMES = new Set(
   ["id", ...RECORD_FIELD_NAMES].filter((field) => field !== "updatedAt"),
 );
@@ -187,9 +198,7 @@ const makePlayerKey = (eventId, id) => `${makeEventPrefix(eventId)}${id}`;
 
 const validateRecordShape = (candidate, { exactName = false } = {}) => {
   if (!isPlainObject(candidate)) return null;
-  if (!("virusKing" in candidate)) {
-    candidate = { ...candidate, virusKing: false };
-  }
+  candidate = withOptionalFieldDefaults(candidate);
   if (!hasExactFields(candidate, RECORD_FIELD_NAMES)) return null;
   const name = sanitizeName(candidate.name);
   if (name === null) return null;
@@ -203,6 +212,7 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
     return null;
   if (typeof candidate.cleared !== "boolean") return null;
   if (typeof candidate.cheatCleared !== "boolean") return null;
+  if (typeof candidate.rtaCleared !== "boolean") return null;
   if (typeof candidate.princessCarried !== "boolean") return null;
   if (typeof candidate.dragonDefeated !== "boolean") return null;
   if (typeof candidate.virusKing !== "boolean") return null;
@@ -219,6 +229,7 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
     location: candidate.location,
     cleared: candidate.cleared,
     cheatCleared: candidate.cheatCleared,
+    rtaCleared: candidate.rtaCleared,
     princessCarried: candidate.princessCarried,
     dragonDefeated: candidate.dragonDefeated,
     virusKing: candidate.virusKing,
@@ -232,9 +243,7 @@ const validateIncomingBody = (candidate, now) => {
   if (!isPlainObject(candidate)) {
     return { error: apiError(400, "invalid_json", "JSON body must be an object") };
   }
-  if (!("virusKing" in candidate)) {
-    candidate = { ...candidate, virusKing: false };
-  }
+  candidate = withOptionalFieldDefaults(candidate);
   if (!hasExactFields(candidate, INCOMING_FIELD_NAMES)) {
     return { error: apiError(400, "invalid_shape", "JSON body has missing or unknown fields") };
   }
@@ -328,11 +337,12 @@ export async function isHeroNameTaken(env, name, excludedPlayerId = "") {
 }
 
 const tierOf = (record) => {
-  if (record.cleared && !record.cheatCleared) return 0;
-  if (record.cheatCleared) return 1;
-  if (record.princessCarried) return 2;
-  if (record.dragonDefeated) return 3;
-  return 4;
+  if (record.cleared && !record.cheatCleared && !record.rtaCleared) return 0;
+  if (record.cleared && record.rtaCleared && !record.cheatCleared) return 1;
+  if (record.cheatCleared) return 2;
+  if (record.princessCarried) return 3;
+  if (record.dragonDefeated) return 4;
+  return 5;
 };
 
 const clearSortValue = (record) => (record.clearMs > 0 ? record.clearMs : Number.MAX_SAFE_INTEGER);
@@ -991,7 +1001,7 @@ const PAGE = String.raw`<!doctype html>
     </section>
     <section class="table-shell">
       <table aria-describedby="status-detail">
-        <caption>じゅんいは クリア → きゅうしゅつちゅう → とうばつずみ → ぼうけんちゅう の じゅんで、どうじゅんなら クリアタイム → レベル → ゴールド → なまえ で きまる。きろくは 6 じかんで きえる</caption>
+        <caption>じゅんいは クリア → 爆速RTA → せかいめつぼう → きゅうしゅつちゅう → とうばつずみ → ぼうけんちゅう の じゅんで、どうじゅんなら クリアタイム → レベル → ゴールド → なまえ で きまる。きろくは 6 じかんで きえる</caption>
         <thead>
           <tr>
             <th scope="col">じゅんい</th>
@@ -1065,10 +1075,12 @@ const PAGE = String.raw`<!doctype html>
   };
   const statusOf = (player) => {
     if (player.cheatCleared) return { label: "せかいめつぼう", cls: "status-cheat" };
+    if (player.cleared && player.rtaCleared) return { label: "爆速RTA", cls: "status-cheat" };
     if (player.cleared) return { label: "クリア", cls: "status-clear" };
     if (player.princessCarried) return { label: "ちょまどひめを かついでいる", cls: "status-princess" };
     if (player.dragonDefeated) return { label: "だいまおうを たおした", cls: "status-boss" };
     if (player.virusKing) return { label: "だいまおう", cls: "status-cheat" };
+    if (player.location === "まもりのまち") return { label: "まちを さんさく", cls: "" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
   const formatClearTime = (clearMs) => {
