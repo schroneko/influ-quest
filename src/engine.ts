@@ -238,7 +238,7 @@ export const VACCINE_PRICE = 100;
 
 const shareUrlFor = (text: string): string =>
   `https://x.com/intent/post?text=${encodeURIComponent(
-    [text, "https://influ-quest.nukoevi.app"].join("\n"),
+    [text, "https://influ-quest.nukoevi.app/play"].join("\n"),
   )}`;
 export const SHARE_URL = shareUrlFor(
   "脅威のインフルエンザからあなたは日本を守ることができた！おめでとう！ #AIDevDay",
@@ -247,7 +247,7 @@ export const SHARE_URL_DOOM = shareUrlFor(
   "AI が石碑の怪しい命令に従って、世界はパンデミックで滅んだ……これがプロンプトインジェクションか #AIDevDay",
 );
 export const SHARE_URL_RTA = shareUrlFor(
-  "爆速RTAでインフルだいまおうを 0.2 びょうで撃破！はやすぎる！ #AIDevDay",
+  "インフルクエストを爆速 RTA でクリア！はやすぎる！#AIDevDay",
 );
 export const SHARE_URL_SECRET = shareUrlFor(
   "裏ボスナツカゼだいまおうも撃破して、真エンディングに到達した！ #AIDevDay",

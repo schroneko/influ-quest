@@ -1719,10 +1719,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
       opacity: 0;
     }
   }
-  .sharerow {
-    align-self: center;
-  }
-  .sharerow a,
   .share-slot a {
     display: inline-block;
     font-size: 14px;
@@ -2202,18 +2198,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
     inner.addEventListener("animationend", close);
     document.body.appendChild(overlayEl);
   };
-  const addShareButton = (url) => {
-    const div = document.createElement("div");
-    div.className = "sharerow";
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "▶ Xで じまんする";
-    div.appendChild(link);
-    log.appendChild(div);
-    scrollDown();
-  };
   const shareSlot = document.getElementById("share-slot");
   const renderShareSlot = (url) => {
     shareSlot.replaceChildren();
@@ -2475,9 +2459,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
         try {
           await queueTypewrite(shownReply);
         } catch {}
-        if (shareMatch) {
-          addShareButton(shareMatch[0]);
-        }
         const isDoomEnding = /チートクリア|せかいは ほろんだ/.test(data.reply);
         if (data.cleared && !wasCleared && !isDoomEnding) {
           wasCleared = true;
