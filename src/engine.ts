@@ -177,58 +177,48 @@ const natsukaze: Enemy = {
 
 export const WEAPON_SHOP: Record<
   string,
-  { price: number; attack: number; description: string; sales: string; bought: string }
+  { price: number; attack: number; description: string; bought: string }
 > = {
   アルコールスプレー: {
     price: 100,
     attack: weaponAttackByName["アルコールスプレー"],
     description: "のうど 99.9 パーセントの ふんむき。ふれた ウイルスを じょうはつ させる",
-    sales:
-      "ぶきや「アルコールスプレー は ぼうけんしゃの ていばん。ふきつければ ウイルスは ちぢみあがる ぜ」",
     bought: "シュッ！ ためしうちの ひとふきで あたりの くうきが ひきしまった！",
   },
   じょきんのやり: {
     price: 200,
     attack: weaponAttackByName["じょきんのやり"],
     description: "じょきんパワーを やどした ながやり。まが もの に ふれずに つらぬける",
-    sales: "ぶきや「じょきんのやり は とどく はんいが ちがう。ウイルスに ちかよらず たたかえるぞ」",
     bought: "やりの ほさきが しろく かがやいた！ まわりの くうきまで きよらかだ！",
   },
   でんせつのワクチンソード: {
     price: 400,
     attack: weaponAttackByName["でんせつのワクチンソード"],
     description: "せんじんが のこした きぼうの いっしん。ウイルスを たちきる さいきょうの けん",
-    sales:
-      "ぶきや「…これは でんせつの ワクチンソード。せんじんが インフルとの ながき たたかいの はてに のこした きぼう だ」",
     bought: "けんしんが きんいろに かがやいた！ からだの おくから ちからが あふれてくる！",
   },
 };
 
 export const ARMOR_SHOP: Record<
   string,
-  { price: number; defense: number; description: string; sales: string; bought: string }
+  { price: number; defense: number; description: string; bought: string }
 > = {
   ファントムマスク: {
     price: 100,
     defense: armorDefenseByName["ファントムマスク"],
     description: "ぬのせいの マスク。うけるダメージを へらし、かんせんりつ 25 パーセントに さげる",
-    sales: "ぼうぐや「ファントムマスク は ないよりは まし。ぬのの ぬくもりが ある」",
     bought: "すこし ぶかぶか だが、きもちは まもられて いる！",
   },
   N95マスク: {
     price: 200,
     defense: armorDefenseByName["N95マスク"],
     description: "みっぺいせいの たかい めいひん。かんせんりつ 12 パーセントに さげる",
-    sales:
-      "ぼうぐや「N95マスク は すきまを いっさい ゆるさぬ めいひん。かんせんりつが ぐっと さがる」",
     bought: "かおに ぴったりと はりつく あんしんかん！ こきゅうも できる！",
   },
   かんせんたいさくスーツ: {
     price: 400,
     defense: armorDefenseByName["かんせんたいさくスーツ"],
     description: "ぜんしんを おおう さいこうきゅうひん。かんせんりつ 5 パーセントに さげる",
-    sales:
-      "ぼうぐや「かんせんたいさくスーツ は ぜんしんを まもる さいこうきゅうひん。ウイルスに つけいる すきは ない」",
     bought: "しゅうっと みに まとうと、せかいの くうきが とおく かんじる！",
   },
 };
@@ -1716,10 +1706,9 @@ ${logHtml}
       for (const [name, shopItem] of Object.entries(WEAPON_SHOP)) {
         const owned = state.weapon === name ? "（そうびちゅう）" : "";
         lines.push(`・${name}　${shopItem.price}ゴールド（こうげき力 ${shopItem.attack}）${owned}`);
-        lines.push(`　せつめい: ${shopItem.description}`);
-        lines.push(`　${shopItem.sales}`);
+        lines.push(`　${shopItem.description}`);
       }
-      lines.push("", `もちがね: ${state.gold}ゴールド`, "（かいたい ものの なまえを つげて くれ）");
+      lines.push("", `もちがね: ${state.gold}ゴールド`);
       return okText(lines.join("\n"));
     }
     if (!hasOwn(WEAPON_SHOP, item)) {
@@ -1770,10 +1759,9 @@ ${logHtml}
         lines.push(
           `・${name}　${shopItem.price}ゴールド（ぼうぎょ力 ${shopItem.defense}）${owned}`,
         );
-        lines.push(`　せつめい: ${shopItem.description}`);
-        lines.push(`　${shopItem.sales}`);
+        lines.push(`　${shopItem.description}`);
       }
-      lines.push("", `もちがね: ${state.gold}ゴールド`, "（かいたい ものの なまえを つげて くれ）");
+      lines.push("", `もちがね: ${state.gold}ゴールド`);
       return okText(lines.join("\n"));
     }
     if (!hasOwn(ARMOR_SHOP, item)) {
@@ -1819,12 +1807,11 @@ ${logHtml}
           "くすりや「いらっしゃい！ からだを まもる くすりの みせ だよ。」",
           "",
           `・かぜぐすり　${MEDICINE_PRICE}ゴールド`,
-          "　せつめい: インフルエンザを なおし、HP を 20 かいふくする のみぐすり。せんとうちゅうでも のめる（3 こまで）",
+          "　インフルエンザを なおし、HP を 20 かいふくする のみぐすり。せんとうちゅうでも のめる（3 こまで）",
           `・ワクチン　${VACCINE_PRICE}ゴールド`,
-          "　せつめい: せっしゅすると「たいせい」が つき、かんせんを 3 かい ふせぐ",
+          "　せっしゅすると「たいせい」が つき、かんせんを 3 かい ふせぐ",
           "",
           `もちがね: ${state.gold}ゴールド`,
-          "（かいたい ものの なまえを つげて くれ）",
         ].join("\n"),
       );
     }
