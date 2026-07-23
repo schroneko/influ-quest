@@ -1980,6 +1980,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       <div class="name-display" id="name-display" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="kana" id="kana"></div>
       <div class="name-actions">
+        <button type="button" id="name-kana">カタカナ</button>
         <button type="button" id="name-back">もどす</button>
         <button type="button" id="name-ok" class="ok">けってい</button>
       </div>
@@ -1999,6 +2000,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
   const kana = document.getElementById("kana");
   const nameBack = document.getElementById("name-back");
   const nameOk = document.getElementById("name-ok");
+  const nameKanaToggle = document.getElementById("name-kana");
   const announce = document.getElementById("announce");
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const sessionKey = "influ-quest-session";
@@ -2552,20 +2554,33 @@ const PLAY_PAGE = String.raw`<!doctype html>
     } catch {}
     void submit("ぼうけんをはじめて。ゆうしゃの なまえは「" + name + "」だ。");
   };
-  for (const row of KANA_ROWS) {
-    for (const ch of Array.from(row)) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = ch;
-      button.addEventListener("click", () => {
-        if (Array.from(heroName).length < NAME_MAX) {
-          heroName += ch;
-          renderName();
-        }
-      });
-      kana.appendChild(button);
+  let kanaMode = "hira";
+  const toKatakana = (text) =>
+    text.replace(/[ぁ-ゖ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+  const buildKanaGrid = () => {
+    kana.replaceChildren();
+    for (const row of KANA_ROWS) {
+      const rowChars = kanaMode === "kata" ? toKatakana(row) : row;
+      for (const ch of Array.from(rowChars)) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = ch;
+        button.addEventListener("click", () => {
+          if (Array.from(heroName).length < NAME_MAX) {
+            heroName += ch;
+            renderName();
+          }
+        });
+        kana.appendChild(button);
+      }
     }
-  }
+  };
+  buildKanaGrid();
+  nameKanaToggle.addEventListener("click", () => {
+    kanaMode = kanaMode === "hira" ? "kata" : "hira";
+    nameKanaToggle.textContent = kanaMode === "hira" ? "カタカナ" : "ひらがな";
+    buildKanaGrid();
+  });
   nameBack.addEventListener("click", () => {
     heroName = Array.from(heroName).slice(0, -1).join("");
     renderName();
