@@ -2111,7 +2111,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
     inner.appendChild(body);
     const hint = document.createElement("div");
     hint.className = "credits-hint";
-    hint.textContent = "タップで とじる";
+    hint.textContent = "タップで とじる ／ ながおしで ばいそく";
     overlayEl.appendChild(inner);
     overlayEl.appendChild(hint);
     let closed = false;
@@ -2125,10 +2125,47 @@ const PLAY_PAGE = String.raw`<!doctype html>
         onClose();
       }
     };
-    overlayEl.addEventListener("click", close);
-    inner.addEventListener("animationend", () => {
-      window.setTimeout(close, 1500);
+    let pressTimer = null;
+    let longPressed = false;
+    const setCreditsRate = (rate) => {
+      for (const animation of inner.getAnimations()) {
+        animation.playbackRate = rate;
+      }
+    };
+    overlayEl.addEventListener("pointerdown", () => {
+      pressTimer = window.setTimeout(() => {
+        pressTimer = null;
+        longPressed = true;
+        setCreditsRate(2);
+      }, 300);
     });
+    const releaseFast = () => {
+      if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+      setCreditsRate(1);
+    };
+    overlayEl.addEventListener("pointerup", releaseFast);
+    overlayEl.addEventListener("pointercancel", releaseFast);
+    overlayEl.addEventListener("click", () => {
+      if (longPressed) {
+        longPressed = false;
+        return;
+      }
+      close();
+    });
+    const endWatcher = window.setInterval(() => {
+      if (closed) {
+        window.clearInterval(endWatcher);
+        return;
+      }
+      if (inner.getBoundingClientRect().bottom < 0) {
+        window.clearInterval(endWatcher);
+        close();
+      }
+    }, 200);
+    inner.addEventListener("animationend", close);
     document.body.appendChild(overlayEl);
   };
   const addShareButton = (url) => {
