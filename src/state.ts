@@ -139,6 +139,7 @@ const gameStateFields = {
   location: locationSchema,
   lairDepth: integerRange(0, 5),
   floorEncounters: integerRange(0, 3).default(0),
+  defeatedEnemies: z.array(z.enum(enemyNames)).max(10).default([]),
   voiceGoldGiven: z.boolean().default(false),
   virusKingEnded: z.boolean().default(false),
   tabletFound: z.boolean(),
@@ -293,6 +294,7 @@ export const initialState: GameState = gameStateSchema.parse({
   location: "venue",
   lairDepth: 0,
   floorEncounters: 0,
+  defeatedEnemies: [],
   voiceGoldGiven: false,
   virusKingEnded: false,
   tabletFound: false,
@@ -311,7 +313,7 @@ export const initialState: GameState = gameStateSchema.parse({
 });
 
 export function createInitialState(): GameState {
-  return { ...initialState };
+  return { ...initialState, defeatedEnemies: [] };
 }
 
 export function appendGameText(gameLog: string[], text: string): void {
@@ -367,6 +369,7 @@ function extractGameStateFromSaveFile(saveFile: SaveFileV1): GameState {
     location: saveFile.location,
     lairDepth: saveFile.lairDepth,
     floorEncounters: saveFile.floorEncounters,
+    defeatedEnemies: saveFile.defeatedEnemies,
     voiceGoldGiven: saveFile.voiceGoldGiven,
     virusKingEnded: saveFile.virusKingEnded,
     tabletFound: saveFile.tabletFound,

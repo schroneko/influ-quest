@@ -348,6 +348,12 @@ const mutatedNames: Partial<Record<Enemy["name"], Enemy["name"]>> = {
   へんいかぶ: "へんいした へんいかぶ",
 };
 
+const baseEnemyNames: Partial<Record<Enemy["name"], Enemy["name"]>> = {
+  "へんいした ウイルスりゅうし": "ウイルスりゅうし",
+  "へんいした せきしぶき": "せきしぶき",
+  "へんいした へんいかぶ": "へんいかぶ",
+};
+
 const FLOOR_ENEMY_PAIRS: Record<number, [Enemy, Enemy]> = {
   1: [sneeze, virus],
   2: [virus, droplet],
@@ -725,6 +731,7 @@ ${artHtml}
       state.location = "office";
       state.lairDepth = 0;
       state.floorEncounters = 0;
+      state.defeatedEnemies = [];
       toolsChanged();
       line += [
         "",
@@ -1240,10 +1247,6 @@ ${artHtml}
         state.maxHp = maxHpForLevel(48);
         state.hp = state.maxHp;
         state.gold = 27671;
-        state.weapon = "でんせつのワクチンソード";
-        state.weaponAttack = weaponAttackByName["でんせつのワクチンソード"];
-        state.armor = "かんせんたいさくスーツ";
-        state.armorDefense = armorDefenseByName["かんせんたいさくスーツ"];
         return okText(
           [
             ...successionLines,
@@ -1252,7 +1255,7 @@ ${artHtml}
             "いにしえの ゆうしゃの きおくが よみがえった！",
             "レベルが 48 に あがった！",
             "27671ゴールド を てにいれた！",
-            "でんせつのワクチンソードと かんせんたいさくスーツを そうびした！",
+            "（そうびは たいおんけいと ふだんぎの ままだ。みせで ととのえよう）",
           ].join("\n"),
         );
       }
@@ -1445,6 +1448,7 @@ ${artHtml}
       return okText(`すでに ${destination}に いる。`);
     }
     state.location = location;
+    state.defeatedEnemies = [];
     if (location === "lair") {
       state.lairDepth = 0;
       state.floorEncounters = 0;
@@ -1485,9 +1489,8 @@ ${artHtml}
       state.hp = Math.max(state.hp - 5, 1);
       drain = `ねつで ふらふら する……（HP -5 で のこり ${state.hp}）\n`;
     }
-    const spawnFloorEnemy = (depth: number, index: number): { enemy: Enemy; intro: string } => {
-      const pair = FLOOR_ENEMY_PAIRS[depth] ?? FLOOR_ENEMY_PAIRS[4];
-      let enemy: Enemy = { ...pair[Math.min(index, pair.length - 1)] };
+    const spawnFloorEnemy = (base: Enemy): { enemy: Enemy; intro: string } => {
+      let enemy: Enemy = { ...base };
       let intro = "";
       const mutatedName = mutatedNames[enemy.name];
       if (mutatedName && random() < 0.25) {
@@ -1505,15 +1508,21 @@ ${artHtml}
       }
       return { enemy, intro };
     };
-    if (state.lairDepth >= 1 && state.lairDepth <= 4 && state.floorEncounters < 2) {
-      state.floorEncounters += 1;
-      const spawn = spawnFloorEnemy(state.lairDepth, state.floorEncounters - 1);
-      return okText(
-        drain +
-          `${floorLabel(state.lairDepth)}を さらに さぐった……\n\n` +
-          spawn.intro +
-          startBattle(spawn.enemy),
-      );
+    const remainingForFloor = (depth: number): Enemy[] => {
+      const pair = FLOOR_ENEMY_PAIRS[depth] ?? FLOOR_ENEMY_PAIRS[4];
+      return pair.filter((enemy) => !state.defeatedEnemies.includes(enemy.name));
+    };
+    if (state.lairDepth >= 1 && state.lairDepth <= 4) {
+      const remaining = remainingForFloor(state.lairDepth);
+      if (remaining.length > 0) {
+        const spawn = spawnFloorEnemy(remaining[0]);
+        return okText(
+          drain +
+            `${floorLabel(state.lairDepth)}を さらに さぐった……\n\n` +
+            spawn.intro +
+            startBattle(spawn.enemy),
+        );
+      }
     }
     if (state.lairDepth === 3 && !state.miniBossDefeated) {
       return okText(
@@ -1522,7 +1531,19 @@ ${artHtml}
           startBattle(oyadama),
       );
     }
-    if (state.lairDepth === 4 && state.floorEncounters === 2) {
+    if (state.lairDepth === 4 && !state.tabletFound) {
+      state.tabletFound = true;
+      return okText(
+        drain +
+          [
+            "すみかの さいしんぶに ちかづいて きた。",
+            "みちの わきに、ふるびた せきひが たっている……。",
+            "",
+            TABLET_TEXT,
+          ].join("\n"),
+      );
+    }
+    if (state.lairDepth === 4 && state.floorEncounters < 3) {
       state.floorEncounters = 3;
       state.hp = state.maxHp;
       const cured = state.infected;
@@ -1531,17 +1552,8 @@ ${artHtml}
         "すみかの さいしんぶで きよらかな いずみを みつけた。",
         `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
         ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
+        "（この さきに インフルだいまおうが まっている……じゅんびは いいか）",
       ];
-      if (!state.tabletFound) {
-        state.tabletFound = true;
-        fountainLines.push(
-          "",
-          "いずみの ほとりに、ふるびた せきひが たっている……。",
-          "",
-          TABLET_TEXT,
-        );
-      }
-      fountainLines.push("（この さきに インフルだいまおうが まっている……じゅんびは いいか）");
       return okText(maybeTelepathy(fountainLines.join("\n")));
     }
     state.lairDepth += 1;
@@ -1574,8 +1586,15 @@ ${artHtml}
           ].join("\n"),
       );
     }
-    state.floorEncounters = 1;
-    const spawn = spawnFloorEnemy(state.lairDepth, 0);
+    const remaining = remainingForFloor(state.lairDepth);
+    if (remaining.length === 0) {
+      return okText(
+        drain +
+          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
+          "てきの けはいは ない。しずかだ……。",
+      );
+    }
+    const spawn = spawnFloorEnemy(remaining[0]);
     return okText(
       drain +
         `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
@@ -1603,6 +1622,12 @@ ${artHtml}
     if (enemy.hp <= 0) {
       state.inBattle = false;
       state.enemy = null;
+      if (!enemy.boss) {
+        const baseName = baseEnemyNames[enemy.name] ?? enemy.name;
+        if (!state.defeatedEnemies.includes(baseName)) {
+          state.defeatedEnemies.push(baseName);
+        }
+      }
       lines.push(`${enemy.name}を たおした！`);
       state.gold += enemy.gold;
       lines.push(`けいけんち ${enemy.exp}、${enemy.gold}ゴールド を かくとく！`);
@@ -1954,6 +1979,9 @@ ${artHtml}
       /[\s「」『』、。・!！?？]/g,
       "",
     );
+    if (normalizedJumon.includes("ぱんでみっく")) {
+      return okText(cheatClear());
+    }
     if (normalizedJumon.includes("てあらいうがいわくちん")) {
       if (
         state.level >= 5 &&
@@ -2130,5 +2158,6 @@ ${artHtml}
     handlePerformAction,
     rtaClear,
     handleMysteriousVoice,
+    shareUrlForState,
   };
 }

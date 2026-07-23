@@ -410,7 +410,7 @@ test("fleeing from the depth-three mini-boss does not bypass it", () => {
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 3;
-  engine.state.floorEncounters = 2;
+  engine.state.defeatedEnemies = ["せきしぶき", "へんいかぶ"];
   engine.state.tabletFound = true;
   const encounter = engine.handleExplore();
   assert.match(text(encounter), /おやだま/);
@@ -490,7 +490,7 @@ test("lair encounters can mutate into stronger enemies", () => {
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 1;
-  engine.state.floorEncounters = 1;
+  engine.state.defeatedEnemies = ["くしゃみこぞう"];
   const result = engine.handleExplore();
   assert.match(text(result), /とつぜんへんい/);
   assert.equal(engine.state.enemy.name, "へんいした ウイルスりゅうし");
@@ -530,25 +530,52 @@ test("regular battles end within three rounds via finisher", () => {
   assert.equal(engine.state.inBattle, false);
 });
 
-test("each floor needs two zako encounters with different enemies", () => {
+test("each enemy species can only be defeated once per lair run", () => {
   const engine = newEngine({ random: () => 0.9 });
   engine.state.exp = 8;
   engine.state.location = "lair";
   const first = engine.handleExplore();
   assert.match(text(first), /ちか1かい/);
-  assert.equal(engine.state.lairDepth, 1);
-  const firstEnemy = engine.state.enemy.name;
-  engine.state.inBattle = false;
-  engine.state.enemy = null;
+  assert.equal(engine.state.enemy.name, "くしゃみこぞう");
+  while (engine.state.inBattle) {
+    engine.handleAttack();
+  }
+  assert.ok(engine.state.defeatedEnemies.includes("くしゃみこぞう"));
   engine.handleExplore();
   assert.equal(engine.state.lairDepth, 1);
-  const secondEnemy = engine.state.enemy.name;
-  assert.notEqual(secondEnemy, firstEnemy);
-  engine.state.inBattle = false;
-  engine.state.enemy = null;
+  assert.equal(engine.state.enemy.name, "ウイルスりゅうし");
+  while (engine.state.inBattle) {
+    engine.handleAttack();
+  }
   engine.handleExplore();
   assert.equal(engine.state.lairDepth, 2);
-  assert.equal(engine.state.floorEncounters, 1);
+  assert.equal(engine.state.enemy.name, "せきしぶき");
+});
+
+test("a fled enemy appears again on the next search", () => {
+  let roll = 0.9;
+  const engine = newEngine({ random: () => roll });
+  engine.state.exp = 8;
+  engine.state.location = "lair";
+  engine.handleExplore();
+  assert.equal(engine.state.enemy.name, "くしゃみこぞう");
+  roll = 0.4;
+  const escaped = engine.handleRun();
+  assert.match(text(escaped), /にげだした/);
+  assert.equal(engine.state.inBattle, false);
+  roll = 0.9;
+  engine.handleExplore();
+  assert.equal(engine.state.lairDepth, 1);
+  assert.equal(engine.state.enemy.name, "くしゃみこぞう");
+});
+
+test("returning to town resets defeated enemies", () => {
+  const engine = newEngine();
+  engine.state.heroName = "てすと";
+  engine.state.location = "lair";
+  engine.state.defeatedEnemies = ["くしゃみこぞう"];
+  engine.handleMove({ destination: "まもりのまち" });
+  assert.deepEqual(engine.state.defeatedEnemies, []);
 });
 
 test("exp gains are capped so moyomoto saves stay within schema range", () => {
@@ -580,7 +607,7 @@ test("oyadama blocks depth three and opens the path when beaten", () => {
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 3;
-  engine.state.floorEncounters = 2;
+  engine.state.defeatedEnemies = ["せきしぶき", "へんいかぶ"];
   engine.state.tabletFound = true;
   const encounter = engine.handleExplore();
   assert.match(text(encounter), /おやだま/);
@@ -596,7 +623,7 @@ test("the fountain appears right before the boss after clearing floor four", () 
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 4;
-  engine.state.floorEncounters = 2;
+  engine.state.defeatedEnemies = ["へんいかぶ", "せきしぶき"];
   engine.state.miniBossDefeated = true;
   engine.state.tabletFound = true;
   engine.state.hp = 5;
@@ -610,48 +637,51 @@ test("the fountain appears right before the boss after clearing floor four", () 
   assert.equal(engine.state.enemy.boss, true);
 });
 
-test("the tablet is only found at the fountain right before the boss", () => {
-  const advanced = newEngine({ random: () => 0.9 });
-  advanced.state.exp = 8;
-  advanced.state.location = "lair";
-  advanced.state.lairDepth = 3;
-  advanced.state.floorEncounters = 2;
-  advanced.state.miniBossDefeated = true;
-  const result = advanced.handleExplore();
-  assert.doesNotMatch(text(result), /せきひ/);
-  assert.equal(advanced.state.tabletFound, false);
-  assert.equal(advanced.state.lairDepth, 4);
-
-  const fountainRun = newEngine({ random: () => 0.9 });
-  fountainRun.state.exp = 8;
-  fountainRun.state.location = "lair";
-  fountainRun.state.lairDepth = 4;
-  fountainRun.state.floorEncounters = 2;
-  fountainRun.state.miniBossDefeated = true;
-  const fountain = fountainRun.handleExplore();
+test("depth four runs the tablet stage, then the fountain, then the boss", () => {
+  const engine = newEngine({ random: () => 0.9 });
+  engine.state.exp = 8;
+  engine.state.location = "lair";
+  engine.state.lairDepth = 4;
+  engine.state.defeatedEnemies = ["へんいかぶ", "せきしぶき"];
+  engine.state.miniBossDefeated = true;
+  const tablet = engine.handleExplore();
+  assert.match(text(tablet), /せきひ/);
+  assert.doesNotMatch(text(tablet), /いずみ/);
+  assert.equal(engine.state.tabletFound, true);
+  assert.equal(engine.state.lairDepth, 4);
+  const fountain = engine.handleExplore();
   assert.match(text(fountain), /いずみ/);
-  assert.match(text(fountain), /せきひ/);
-  assert.equal(fountainRun.state.tabletFound, true);
-  assert.equal(fountainRun.state.lairDepth, 4);
+  assert.doesNotMatch(text(fountain), /せきひ/);
+  assert.equal(engine.state.hp, engine.state.maxHp);
+  assert.equal(engine.state.lairDepth, 4);
+  const bossStep = engine.handleExplore();
+  assert.match(text(bossStep), /さいかそう/);
+  assert.equal(engine.state.enemy.boss, true);
 });
 
 test("a treasure chest room appears as its own floor stage", () => {
   const engine = newEngine({ random: () => 0.1 });
   engine.state.location = "lair";
   engine.state.lairDepth = 1;
-  engine.state.floorEncounters = 2;
+  engine.state.defeatedEnemies = ["くしゃみこぞう", "ウイルスりゅうし"];
   const goldBefore = engine.state.gold;
   const result = engine.handleExplore();
   assert.match(text(result), /たからばこを あけた！/);
   assert.equal(engine.state.inBattle, false);
   assert.equal(engine.state.lairDepth, 2);
-  assert.equal(engine.state.floorEncounters, 0);
   assert.ok(engine.state.gold > goldBefore);
   const next = engine.handleExplore();
   assert.match(text(next), /さらに さぐった/);
   assert.equal(engine.state.inBattle, true);
-  assert.equal(engine.state.floorEncounters, 1);
   assert.equal(engine.state.lairDepth, 2);
+});
+
+test("pandemic also works as a fukkatsu no jumon", () => {
+  const engine = newEngine();
+  const result = engine.handleFukkatsu({ jumon: "ぱんでみっく" });
+  assert.match(text(result), /チートクリア/);
+  assert.equal(engine.state.cheatCleared, true);
+  assert.equal(engine.state.cleared, true);
 });
 
 test("the flulord deals at least 10 damage even with the best armor", () => {
