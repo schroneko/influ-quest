@@ -164,20 +164,6 @@ function loadSessionState(saved) {
   return { state: createInitialState(), gameLog: [] };
 }
 
-export function isShopScene(state, sceneText) {
-  if (!sceneText || state.inBattle || state.hostAsking || state.cleared) {
-    return false;
-  }
-  return (
-    sceneText.includes("ぶきや「いらっしゃい") ||
-    sceneText.includes("ぼうぐや「いらっしゃい") ||
-    sceneText.includes("くすりや「いらっしゃい") ||
-    sceneText.includes("ぶきや「まいど") ||
-    sceneText.includes("ぼうぐや「まいど") ||
-    sceneText.includes("くすりや「まいど")
-  );
-}
-
 function buildSuggestions(state, sceneText) {
   if (state.heroName === heroPlaceholderName && !state.cleared) {
     return [];
@@ -248,7 +234,6 @@ function buildSuggestions(state, sceneText) {
     }
   };
   const fill = () => {
-    add("つよさを みる");
     add(state.location === "venue" ? "まもりのまちへ いく" : "まもりのまちへ もどる");
   };
   if (state.cleared) {
@@ -264,8 +249,6 @@ function buildSuggestions(state, sceneText) {
     add("にげる");
     if (state.medicineCount > 0) {
       add("かぜぐすりを のむ");
-    } else {
-      add("つよさを みる");
     }
     return options;
   }
@@ -283,15 +266,12 @@ function buildSuggestions(state, sceneText) {
       return ["だいじんと はなす"];
     } else if (state.princessCarried) {
       add("ちょまどひめを だいじんに とどける（エンディングへ）");
-      add("つよさを みる");
       add("まもりのまちへ いく");
     } else {
       add("まもりのまちへ いく");
       add("ウイルスのすみかへ いそぐ");
       if (state.hostTalkCount > 0 && state.hostTalkCount < 7) {
         add("だいじんと はなす");
-      } else {
-        add("つよさを みる");
       }
     }
   } else if (state.location === "office") {
@@ -308,19 +288,15 @@ function buildSuggestions(state, sceneText) {
   } else {
     if (state.princessCarried) {
       add("おおてまちじょうへ もどる");
-      add("つよさを みる");
       add("まもりのまちへ もどる");
     } else if (state.bossDefeated && state.lairDepth >= 5) {
       add("ちょまどひめに はなしかける");
-      add("つよさを みる");
       add("まもりのまちへ もどる");
     } else {
       add("おくへ すすむ");
       add("まもりのまちへ もどる");
       if (state.infected && state.medicineCount === 0) {
         add("まちで やすんで なおす");
-      } else {
-        add("つよさを みる");
       }
     }
   }
@@ -397,7 +373,7 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
     reply,
     status: engine.statusText(),
     suggestions: buildSuggestions(state, reply),
-    allowInput: !isShopScene(state, reply),
+    allowInput: /せきひ/.test(reply),
     needsName: state.heroName === heroPlaceholderName && !state.cleared,
     gameOver: false,
     cleared: state.cleared === true,
