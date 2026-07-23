@@ -2575,8 +2575,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
         savedName +
         "。なまえは のこっている。サーバーの ぼうけんが のこっていれば つづきから あそべるぞ。",
     ).then(() => {
-      renderSuggestions(["つづきを あそぶ", "はじめから やりなおす"]);
-      input.focus();
+      renderSuggestions(["つづきを あそぶ", "はじめから やりなおす"], { allowInput: false });
     });
   } else {
     renderName();

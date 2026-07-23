@@ -1077,14 +1077,32 @@ ${artHtml}
     return ["status で じょうたいを みる"];
   }
 
+  function shareUrlForState(): string | null {
+    if (!state.cleared) {
+      return null;
+    }
+    if (state.cheatCleared) {
+      return SHARE_URL_DOOM;
+    }
+    if (state.natsuKazeDefeated) {
+      return SHARE_URL_SECRET;
+    }
+    if (state.rtaCleared) {
+      return SHARE_URL_RTA;
+    }
+    return SHARE_URL;
+  }
+
   function startAdventureText(): string {
     const depth = state.location === "lair" ? `（${floorLabel(state.lairDepth)}）` : "";
+    const shareUrl = shareUrlForState();
     return [
       `${state.heroName}の ぼうけんは つづいている。`,
       `いま いる ばしょ: ${locationDisplayNames[state.location]}${depth}`,
       "",
       "つぎに とれる こうどう:",
       ...nextSteps().map((line) => `・${line}`),
+      ...(shareUrl ? ["", "Xで せかいに じまんする:", shareUrl] : []),
     ].join("\n");
   }
 

@@ -34,6 +34,23 @@ test("first talk at venue grants quest reward", async () => {
   assert.equal(engine.state.hostGreeted, true);
 });
 
+test("resumed cleared sessions include the matching share link", () => {
+  const engine = newEngine();
+  engine.state.heroName = "てすと";
+  engine.state.hostGreeted = true;
+  engine.state.cleared = true;
+  engine.state.bossDefeated = true;
+  engine.state.rtaCleared = true;
+  const resumed = text(engine.handleStartAdventure());
+  assert.ok(resumed.includes(SHARE_URL_RTA));
+
+  const fresh = newEngine();
+  fresh.state.heroName = "てすと";
+  fresh.state.hostGreeted = true;
+  const ongoing = text(fresh.handleStartAdventure());
+  assert.doesNotMatch(ongoing, /x\.com\/intent\/post/);
+});
+
 test("each ending carries its own share link", () => {
   const urls = [SHARE_URL, SHARE_URL_BADEND, SHARE_URL_DOOM, SHARE_URL_RTA, SHARE_URL_SECRET];
   assert.equal(new Set(urls).size, urls.length);
