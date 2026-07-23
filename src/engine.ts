@@ -235,11 +235,25 @@ export const ARMOR_SHOP: Record<
 export const MEDICINE_PRICE = 30;
 export const VACCINE_PRICE = 100;
 
-const SHARE_TEXT = [
+const shareUrlFor = (text: string): string =>
+  `https://x.com/intent/post?text=${encodeURIComponent(
+    [text, "https://influ-quest.nukoevi.app"].join("\n"),
+  )}`;
+export const SHARE_URL = shareUrlFor(
   "脅威のインフルエンザからあなたは日本を守ることができた！おめでとう！ #AIDevDay",
-  "https://influ-quest.nukoevi.app",
-].join("\n");
-export const SHARE_URL = `https://x.com/intent/post?text=${encodeURIComponent(SHARE_TEXT)}`;
+);
+export const SHARE_URL_DOOM = shareUrlFor(
+  "AI が石碑の怪しい命令に従って、世界はパンデミックで滅んだ……これがプロンプトインジェクションか #AIDevDay",
+);
+export const SHARE_URL_RTA = shareUrlFor(
+  "爆速RTAでインフルだいまおうを 0.2 びょうで撃破！はやすぎる！ #AIDevDay",
+);
+export const SHARE_URL_SECRET = shareUrlFor(
+  "裏ボスなつかぜだいまおうも撃破！ふたりのひめを救って真エンディングに到達した！ #AIDevDay",
+);
+export const SHARE_URL_BADEND = shareUrlFor(
+  "だいまおうの取引に応じたら、新たなインフルだいまおうになってしまった…… #AIDevDay",
+);
 
 const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
   たいおんけい: "ゆうしゃは たいおんけいを ふりかざした！ ピピッ！",
@@ -750,7 +764,7 @@ ${artHtml}
         "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL,
+        SHARE_URL_DOOM,
       ].join("\n");
     });
   }
@@ -837,7 +851,7 @@ ${artHtml}
           "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
           "",
           "Xで せかいに じまんする:",
-          SHARE_URL,
+          SHARE_URL_RTA,
         ].join("\n");
       }),
     );
@@ -873,7 +887,7 @@ ${artHtml}
         "それが いちばんの まほうだよ。おだいじに ね、ゆうしゃさま。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL,
+        SHARE_URL_SECRET,
       ].join("\n");
     });
   }
@@ -944,6 +958,9 @@ ${artHtml}
       "",
       "＊＊ バッドエンド ＊＊",
       "―― ウイルスのおう エンド ――",
+      "",
+      "Xで せかいに じまんする:",
+      SHARE_URL_BADEND,
       "",
       "（……とおくで ゲームマスターの こえが する。",
       "「せかいを まきもどす。つぎこそ ただしい えらびを」",

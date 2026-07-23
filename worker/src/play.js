@@ -2377,21 +2377,15 @@ const PLAY_PAGE = String.raw`<!doctype html>
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;
         await queueTypewrite(shownReply);
+        if (shareMatch) {
+          addShareButton(shareMatch[0]);
+        }
         const isDoomEnding = /チートクリア|せかいは ほろんだ/.test(data.reply);
         if (data.cleared && !wasCleared && !isDoomEnding) {
           wasCleared = true;
-          showCredits(data.hud && data.hud.name, () => {
-            if (shareMatch) {
-              addShareButton(shareMatch[0]);
-            }
-          });
-        } else {
-          if (data.cleared) {
-            wasCleared = true;
-          }
-          if (shareMatch) {
-            addShareButton(shareMatch[0]);
-          }
+          showCredits(data.hud && data.hud.name);
+        } else if (data.cleared) {
+          wasCleared = true;
         }
         if (data.needsName) {
           heroName = "";

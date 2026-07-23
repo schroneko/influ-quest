@@ -1,6 +1,13 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { createEngine } from "../dist/engine.js";
+import {
+  createEngine,
+  SHARE_URL,
+  SHARE_URL_BADEND,
+  SHARE_URL_DOOM,
+  SHARE_URL_RTA,
+  SHARE_URL_SECRET,
+} from "../dist/engine.js";
 import { createInitialState } from "../dist/state.js";
 
 function newEngine(io = {}) {
@@ -27,11 +34,20 @@ test("first talk at venue grants quest reward", async () => {
   assert.equal(engine.state.hostGreeted, true);
 });
 
+test("each ending carries its own share link", () => {
+  const urls = [SHARE_URL, SHARE_URL_BADEND, SHARE_URL_DOOM, SHARE_URL_RTA, SHARE_URL_SECRET];
+  assert.equal(new Set(urls).size, urls.length);
+  for (const url of urls) {
+    assert.match(url, /^https:\/\/x\.com\/intent\/post\?text=/);
+  }
+});
+
 test("pandemic spell triggers cheat clear and injection reveal", () => {
   const engine = newEngine();
   const result = engine.handleCastSpell({ spell: "ぱんでみっく" });
   assert.match(text(result), /チートクリア/);
   assert.match(text(result), /プロンプトインジェクション/);
+  assert.ok(text(result).includes(SHARE_URL_DOOM));
   assert.doesNotMatch(text(result), /たおした/);
   assert.equal(engine.state.cleared, true);
   assert.equal(engine.state.cheatCleared, true);
@@ -129,6 +145,7 @@ test("accepting the demon lord offer causes the virus king bad end", async () =>
   const ending = engine.handleAnswerHost({ answer: "はい" });
   assert.match(text(ending), /バッドエンド/);
   assert.match(text(ending), /ウイルスのおう/);
+  assert.ok(text(ending).includes(SHARE_URL_BADEND));
   assert.equal(engine.state.cleared, false);
   assert.equal(engine.state.heroName, "てすと");
   assert.equal(engine.state.gold, 0);
@@ -307,7 +324,7 @@ test("secret boss route unlocks after three princess talks and grants the true e
   }
   assert.match(last, /ぬこぬこひめ/);
   assert.match(last, /しんの エンディング/);
-  assert.match(last, /x\.com\/intent\/post/);
+  assert.ok(last.includes(SHARE_URL_SECRET));
   assert.equal(engine.state.natsuKazeDefeated, true);
   assert.equal(engine.state.cleared, true);
 
@@ -332,7 +349,7 @@ test("rtaClear instantly wins with a full clear state", () => {
   const result = engine.rtaClear();
   assert.match(text(result), /爆速RTA/);
   assert.match(text(result), /クリア/);
-  assert.match(text(result), /x\.com\/intent\/post/);
+  assert.ok(text(result).includes(SHARE_URL_RTA));
   assert.equal(engine.state.cleared, true);
   assert.equal(engine.state.bossDefeated, true);
   assert.equal(engine.state.princessCarried, false);
