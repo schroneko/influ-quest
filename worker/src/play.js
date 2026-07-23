@@ -192,7 +192,12 @@ function buildSuggestions(state, sceneText) {
           "ぶきやを のぞく",
         ];
       }
-      return ["ぶきやを のぞく", "ぼうぐやを のぞく", "くすりやを のぞく"];
+      return [
+        "ぶきやを のぞく",
+        "ぼうぐやを のぞく",
+        "くすりやを のぞく",
+        "ウイルスのすみかへ いく",
+      ];
     }
   }
   const options = [];
@@ -263,7 +268,7 @@ function buildSuggestions(state, sceneText) {
     }
     townOptions.push("ぶきやを のぞく", "ぼうぐやを のぞく", "くすりやを のぞく");
     townOptions.push("ウイルスのすみかへ いく");
-    return townOptions.slice(0, 4);
+    return townOptions.slice(0, 5);
   } else {
     if (state.princessCarried) {
       add("おおてまちじょうへ もどる");
