@@ -511,6 +511,41 @@ test("secret boss battle shows battle commands and the natsukaze image", async (
   assert.match(body.image, /natsukaze-lord/);
 });
 
+test("cleared heroes can still browse and buy at the shops", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({
+      heroName: "てすと",
+      hostGreeted: true,
+      cleared: true,
+      bossDefeated: true,
+      location: "office",
+      gold: 1000,
+    }),
+  });
+  const response = await handleChat(createChatRequest("ぶきやを のぞく"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.reply, /ぶきや「いらっしゃい/);
+  assert.ok(body.suggestions.some((option) => option.includes("を かう")));
+  assert.ok(body.suggestions.includes("みせを でる"));
+});
+
+test("pharmacy scene offers the bed rest command", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ heroName: "てすと", hostGreeted: true, location: "office", gold: 100 }),
+  });
+  const response = await handleChat(createChatRequest("くすりやを のぞく"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.ok(body.suggestions.includes("おくの ベッドで やすむ（6G）"));
+});
+
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";

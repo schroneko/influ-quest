@@ -168,7 +168,7 @@ function buildSuggestions(state, sceneText) {
   if (state.heroName === heroPlaceholderName && !state.cleared) {
     return [];
   }
-  if (sceneText && !state.inBattle && !state.hostAsking && !state.cleared) {
+  if (sceneText && !state.inBattle && !state.hostAsking) {
     if (/かいますか|買いますか|かうか？|こうにゅうしますか/.test(sceneText)) {
       return ["はい", "いいえ"];
     }
@@ -213,6 +213,7 @@ function buildSuggestions(state, sceneText) {
       if (state.medicineCount < 3) {
         opts.push(`かぜぐすりを かう（${MEDICINE_PRICE}G）`);
       }
+      opts.push("おくの ベッドで やすむ（6G）");
       opts.push("みせを でる");
       return opts;
     }
@@ -245,12 +246,23 @@ function buildSuggestions(state, sceneText) {
     return options;
   }
   if (state.cleared) {
-    add("ちょまどひめと はなす");
-    if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
-      add("うでだめしを する");
+    if (state.location === "office") {
+      return [
+        "ぶきやを のぞく",
+        "ぼうぐやを のぞく",
+        "くすりやを のぞく",
+        "おおてまちじょうへ もどる",
+      ];
     }
-    add("はじめから やりなおす");
-    return options;
+    const clearedOptions = ["ちょまどひめと はなす"];
+    if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
+      clearedOptions.push("うでだめしを する");
+    }
+    clearedOptions.push(
+      state.location === "venue" ? "まもりのまちへ いく" : "おおてまちじょうへ もどる",
+    );
+    clearedOptions.push("はじめから やりなおす");
+    return clearedOptions.slice(0, 4);
   }
   if (state.hostAsking) {
     add("はい");
@@ -295,9 +307,6 @@ function buildSuggestions(state, sceneText) {
     } else {
       add("おくへ すすむ");
       add("まもりのまちへ もどる");
-      if (state.infected && state.medicineCount === 0) {
-        add("まちで やすんで なおす");
-      }
     }
   }
   fill();
@@ -442,9 +451,6 @@ export function routeDirectCommand(state, rawMessage) {
   ) {
     return [{ action: "move", destination: "まもりのまち" }];
   }
-  if (msg === "まちでやすんでなおす") {
-    return [{ action: "move", destination: "まもりのまち" }, { action: "rest" }];
-  }
   if (msg === "おおてまちじょうへもどる") {
     return [{ action: "move", destination: "おおてまちじょう" }];
   }
@@ -464,7 +470,11 @@ export function routeDirectCommand(state, rawMessage) {
   if (msg === "おくへすすむ") {
     return [{ action: "explore" }];
   }
-  if (msg === "くすりやでやすむ" || msg === "きゅうけいしつでやすむ") {
+  if (
+    msg === "くすりやでやすむ" ||
+    msg === "きゅうけいしつでやすむ" ||
+    msg === "おくのベッドでやすむ"
+  ) {
     return [{ action: "rest" }];
   }
   if (/^ぶきや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
