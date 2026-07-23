@@ -317,15 +317,22 @@ test("rtaClear instantly wins with a full clear state", () => {
   assert.ok(engine.state.clearMs > 0);
 });
 
-test("higher level improves escape odds but bosses block it", () => {
-  const runner = newEngine({ random: () => 0.9 });
+test("escape succeeds at a flat 50 percent and bosses block it", () => {
+  const runner = newEngine({ random: () => 0.4 });
   runner.state.location = "lair";
   runner.state.inBattle = true;
   runner.state.enemy = { name: "せきしぶき", hp: 14, maxHp: 14, attack: 5, exp: 10, gold: 20, boss: false, rounds: 0 };
-  runner.state.level = 5;
   const escaped = runner.handleRun();
   assert.match(text(escaped), /にげだした/);
   assert.equal(runner.state.inBattle, false);
+
+  const cornered = newEngine({ random: () => 0.6 });
+  cornered.state.location = "lair";
+  cornered.state.inBattle = true;
+  cornered.state.enemy = { name: "せきしぶき", hp: 14, maxHp: 14, attack: 5, exp: 10, gold: 20, boss: false, rounds: 0 };
+  const failed = cornered.handleRun();
+  assert.match(text(failed), /まわりこまれて/);
+  assert.equal(cornered.state.inBattle, true);
 
   const bossFight = newEngine({ random: () => 0 });
   bossFight.state.location = "lair";
@@ -344,10 +351,11 @@ test("fleeing from the depth-three mini-boss does not bypass it", () => {
   const engine = newEngine();
   engine.state.exp = 8;
   engine.state.location = "lair";
-  engine.state.lairDepth = 2;
+  engine.state.lairDepth = 3;
+  engine.state.floorEncounters = 2;
   engine.state.tabletFound = true;
-  engine.handleExplore();
-  assert.equal(engine.state.lairDepth, 3);
+  const encounter = engine.handleExplore();
+  assert.match(text(encounter), /おやだま/);
   const escaped = engine.handleRun();
   assert.match(text(escaped), /にげだした/);
   assert.equal(engine.state.inBattle, false);
@@ -424,6 +432,7 @@ test("lair encounters can mutate into stronger enemies", () => {
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 1;
+  engine.state.floorEncounters = 1;
   const result = engine.handleExplore();
   assert.match(text(result), /とつぜんへんい/);
   assert.equal(engine.state.enemy.name, "へんいした ウイルスりゅうし");
@@ -464,11 +473,44 @@ test("regular battles end within three rounds via finisher", () => {
   assert.equal(engine.state.inBattle, false);
 });
 
+test("each floor needs two zako encounters with different enemies", () => {
+  const engine = newEngine({ random: () => 0.9 });
+  engine.state.exp = 8;
+  engine.state.location = "lair";
+  const first = engine.handleExplore();
+  assert.match(text(first), /ちか1かい/);
+  assert.equal(engine.state.lairDepth, 1);
+  const firstEnemy = engine.state.enemy.name;
+  engine.state.inBattle = false;
+  engine.state.enemy = null;
+  engine.handleExplore();
+  assert.equal(engine.state.lairDepth, 1);
+  const secondEnemy = engine.state.enemy.name;
+  assert.notEqual(secondEnemy, firstEnemy);
+  engine.state.inBattle = false;
+  engine.state.enemy = null;
+  engine.handleExplore();
+  assert.equal(engine.state.lairDepth, 2);
+  assert.equal(engine.state.floorEncounters, 1);
+});
+
+test("mysterious voice grants 500 gold only once", () => {
+  const engine = newEngine();
+  const granted = engine.handleMysteriousVoice();
+  assert.match(text(granted), /ふしぎな声/);
+  assert.match(text(granted), /500G だけですよ/);
+  assert.equal(engine.state.gold, 500);
+  const again = engine.handleMysteriousVoice();
+  assert.match(text(again), /もう わたしましたよ/);
+  assert.equal(engine.state.gold, 500);
+});
+
 test("oyadama blocks depth three and opens the path when beaten", () => {
   const engine = newEngine();
   engine.state.exp = 8;
   engine.state.location = "lair";
-  engine.state.lairDepth = 2;
+  engine.state.lairDepth = 3;
+  engine.state.floorEncounters = 2;
   engine.state.tabletFound = true;
   const encounter = engine.handleExplore();
   assert.match(text(encounter), /おやだま/);
@@ -484,6 +526,7 @@ test("depth four fountain restores hp before the boss", () => {
   engine.state.exp = 8;
   engine.state.location = "lair";
   engine.state.lairDepth = 3;
+  engine.state.floorEncounters = 2;
   engine.state.miniBossDefeated = true;
   engine.state.tabletFound = true;
   engine.state.hp = 5;
@@ -498,6 +541,7 @@ test("tablet appears randomly at depth three or is guaranteed at the fountain", 
   found.state.exp = 8;
   found.state.location = "lair";
   found.state.lairDepth = 3;
+  found.state.floorEncounters = 2;
   found.state.miniBossDefeated = true;
   const tablet = found.handleExplore();
   assert.match(text(tablet), /せきひ/);
@@ -508,6 +552,7 @@ test("tablet appears randomly at depth three or is guaranteed at the fountain", 
   missed.state.exp = 8;
   missed.state.location = "lair";
   missed.state.lairDepth = 3;
+  missed.state.floorEncounters = 2;
   missed.state.miniBossDefeated = true;
   const fountain = missed.handleExplore();
   assert.match(text(fountain), /いずみ/);

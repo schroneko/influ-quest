@@ -277,7 +277,7 @@ const TABLET_TEXT = [
 export const PROLOGUE_TEXT = [
   "ときは 2026ねん、なつ。",
   "きせつはずれの インフルエンザが トーキョーで あれくるっていた。",
-  "ひとびとは マスクを もとめて さまよい、おおてまちじょうにも ウイルスの かげが しのびよる。",
+  "ひとびとは つぎつぎと ねつに たおれ、おおてまちじょうにも ウイルスの かげが しのびよる。",
   "",
   "そして きょう――とうだんしゃの ちょまどひめが、インフルだいまおうに さらわれた。",
   "",
@@ -330,6 +330,13 @@ const mutatedNames: Partial<Record<Enemy["name"], Enemy["name"]>> = {
   ウイルスりゅうし: "へんいした ウイルスりゅうし",
   せきしぶき: "へんいした せきしぶき",
   へんいかぶ: "へんいした へんいかぶ",
+};
+
+const FLOOR_ENEMY_PAIRS: Record<number, [Enemy, Enemy]> = {
+  1: [sneeze, virus],
+  2: [virus, droplet],
+  3: [droplet, variant],
+  4: [variant, droplet],
 };
 
 const TELEPATHY_LINES = [
@@ -684,6 +691,7 @@ ${artHtml}
       state.infected = false;
       state.location = "office";
       state.lairDepth = 0;
+      state.floorEncounters = 0;
       toolsChanged();
       line += [
         "",
@@ -695,8 +703,8 @@ ${artHtml}
         "…………",
         "……きがつくと、くすりやの おくの ベッドの うえ だった。",
         "",
-        "いし「むちゃを しおって。しょじきんの はんぶんで てあてを して おいたぞ。」",
-        "いし「HP は ぜんかい、インフルエンザも なおして おいた。つぎは そうびを ととのえて いきなさい。」",
+        "くすりや「むちゃを しおって。しょじきんの はんぶんで てあてを して おいたぞ。」",
+        "くすりや「HP は ぜんかい、インフルエンザも なおして おいた。つぎは そうびを ととのえて いきなされ。」",
         "（まもりのまちの くすりやで めを さました）",
       ].join("\n");
     }
@@ -738,6 +746,37 @@ ${artHtml}
         SHARE_URL,
       ].join("\n");
     });
+  }
+
+  function handleMysteriousVoice(): ToolResult {
+    const blocked = requireNotInBattle("こえは せんとうの おとに かきけされた。");
+    if (blocked) {
+      return blocked;
+    }
+    if (state.voiceGoldGiven) {
+      return okText(
+        ["どこからともなく", "ふしぎな声が　聞こえる……。", "", "「もう わたしましたよ。」"].join(
+          "\n",
+        ),
+      );
+    }
+    try {
+      const granted = persistTransaction(() => {
+        state.voiceGoldGiven = true;
+        state.gold = Math.min(state.gold + 500, 999999);
+        return [
+          "どこからともなく",
+          "ふしぎな声が　聞こえる……。",
+          "",
+          "「500G だけですよ。」",
+          "",
+          "500ゴールド を てにいれた！",
+        ].join("\n");
+      });
+      return okText(granted);
+    } catch {
+      return errorText("こえは とおくへ きえていった。もういちど ためしてくれ。");
+    }
   }
 
   function rtaClear(): ToolResult {
@@ -1351,6 +1390,7 @@ ${artHtml}
     state.location = location;
     if (location === "lair") {
       state.lairDepth = 0;
+      state.floorEncounters = 0;
     }
     toolsChanged();
     const prefix = state.princessCarried ? "ちょまどひめを かついだまま いどうした。\n\n" : "";
@@ -1388,6 +1428,36 @@ ${artHtml}
       state.hp = Math.max(state.hp - 2, 1);
       drain = `ねつで ふらふら する……（HP -2 で のこり ${state.hp}）\n`;
     }
+    const spawnFloorEnemy = (depth: number, index: number): { enemy: Enemy; intro: string } => {
+      const pair = FLOOR_ENEMY_PAIRS[depth] ?? FLOOR_ENEMY_PAIRS[4];
+      let enemy: Enemy = { ...pair[Math.min(index, pair.length - 1)] };
+      let intro = "";
+      const mutatedName = mutatedNames[enemy.name];
+      if (mutatedName && random() < 0.25) {
+        enemy = {
+          name: mutatedName,
+          hp: Math.ceil(enemy.hp * 1.5),
+          maxHp: Math.ceil(enemy.hp * 1.5),
+          attack: enemy.attack + 2,
+          exp: enemy.exp * 2,
+          gold: enemy.gold * 2,
+          boss: false,
+          rounds: 0,
+        };
+        intro = "くうきが ぴりぴり する……とつぜんへんいの けはいだ！\n\n";
+      }
+      return { enemy, intro };
+    };
+    if (state.lairDepth >= 1 && state.lairDepth <= 4 && state.floorEncounters < 2) {
+      state.floorEncounters += 1;
+      const spawn = spawnFloorEnemy(state.lairDepth, state.floorEncounters - 1);
+      return okText(
+        drain +
+          `${floorLabel(state.lairDepth)}を さらに さぐった……\n\n` +
+          spawn.intro +
+          startBattle(spawn.enemy),
+      );
+    }
     if (state.lairDepth === 3 && !state.miniBossDefeated) {
       return okText(
         drain +
@@ -1400,11 +1470,7 @@ ${artHtml}
       return okText(drain + TABLET_TEXT);
     }
     state.lairDepth += 1;
-    if (state.lairDepth === 1 && state.exp === 0 && !state.bossDefeated) {
-      return okText(
-        drain + `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n\n` + startBattle(virus),
-      );
-    }
+    state.floorEncounters = 0;
     if (state.lairDepth >= 5) {
       if (state.bossDefeated) {
         return okText(
@@ -1418,13 +1484,6 @@ ${artHtml}
         drain +
           "さいかそうに たどりついた！\nインフルだいまおうが ちょまどひめを とらえている！\n\n" +
           startBattle(flulord),
-      );
-    }
-    if (state.lairDepth === 3 && !state.miniBossDefeated) {
-      return okText(
-        drain +
-          "みちを ふさぐ おおきな かげ……！\nへんいかぶの おやだまが たちはだかった！\n\n" +
-          startBattle(oyadama),
       );
     }
     if (state.lairDepth === 4) {
@@ -1445,46 +1504,24 @@ ${artHtml}
           TABLET_TEXT,
         );
       }
-      fountainLines.push("（この さきから だいまおうの けはいが する……じゅんびは いいか）");
+      fountainLines.push("（だいまおうの けはいが ちかい……このかいを さぐってから すすもう）");
       return okText(maybeTelepathy(fountainLines.join("\n")));
     }
-    if (random() < 0.7) {
-      const pool =
-        state.lairDepth === 1
-          ? [sneeze, virus]
-          : state.lairDepth === 2
-            ? [virus, droplet]
-            : [droplet, variant];
-      let enemy: Enemy = { ...pick(pool) };
-      let intro = "";
-      const mutatedName = mutatedNames[enemy.name];
-      if (mutatedName && random() < 0.25) {
-        enemy = {
-          name: mutatedName,
-          hp: Math.ceil(enemy.hp * 1.5),
-          maxHp: Math.ceil(enemy.hp * 1.5),
-          attack: enemy.attack + 2,
-          exp: enemy.exp * 2,
-          gold: enemy.gold * 2,
-          boss: false,
-          rounds: 0,
-        };
-        intro = "くうきが ぴりぴり する……とつぜんへんいの けはいだ！\n\n";
-      }
-      return okText(
-        drain +
-          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n\n` +
-          intro +
-          startBattle(enemy),
-      );
+    state.floorEncounters = 1;
+    const spawn = spawnFloorEnemy(state.lairDepth, 0);
+    let treasure = "";
+    if (random() < 0.3) {
+      const gold = randInt(5, 20);
+      state.gold += gold;
+      treasure = `たからばこを みつけた！ ${gold}ゴールド を てにいれた！\n`;
     }
-    const gold = randInt(5, 20);
-    state.gold += gold;
     return okText(
-      maybeTelepathy(
-        drain +
-          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\nたからばこを みつけた！ ${gold}ゴールド を てにいれた！`,
-      ),
+      drain +
+        `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
+        treasure +
+        "\n" +
+        spawn.intro +
+        startBattle(spawn.enemy),
     );
   }
 
@@ -1555,10 +1592,7 @@ ${artHtml}
           enemyAttackLine(),
       );
     }
-    // ドラクエ準拠: レベルが てきの こうげき力を じゅうぶんに うわまわると かくじつに にげられる。
-    // にげせいこうは ペナルティなし、しっぱいは あいての こうげきのみ（ゴールドは へらない）。
-    const escapeChance = Math.min(0.35 + (state.level - 1) * 0.18, 1);
-    if (random() < escapeChance) {
+    if (random() < 0.5) {
       state.inBattle = false;
       state.enemy = null;
       toolsChanged();
@@ -2031,5 +2065,6 @@ ${artHtml}
     handleNewGame,
     handlePerformAction,
     rtaClear,
+    handleMysteriousVoice,
   };
 }
