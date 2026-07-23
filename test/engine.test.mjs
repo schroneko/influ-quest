@@ -610,29 +610,60 @@ test("the fountain appears right before the boss after clearing floor four", () 
   assert.equal(engine.state.enemy.boss, true);
 });
 
-test("tablet appears randomly at depth three or is guaranteed at the fountain", () => {
-  const found = newEngine({ random: () => 0.1 });
-  found.state.exp = 8;
-  found.state.location = "lair";
-  found.state.lairDepth = 3;
-  found.state.floorEncounters = 2;
-  found.state.miniBossDefeated = true;
-  const tablet = found.handleExplore();
-  assert.match(text(tablet), /せきひ/);
-  assert.equal(found.state.tabletFound, true);
-  assert.equal(found.state.lairDepth, 3);
+test("the tablet is only found at the fountain right before the boss", () => {
+  const advanced = newEngine({ random: () => 0.9 });
+  advanced.state.exp = 8;
+  advanced.state.location = "lair";
+  advanced.state.lairDepth = 3;
+  advanced.state.floorEncounters = 2;
+  advanced.state.miniBossDefeated = true;
+  const result = advanced.handleExplore();
+  assert.doesNotMatch(text(result), /せきひ/);
+  assert.equal(advanced.state.tabletFound, false);
+  assert.equal(advanced.state.lairDepth, 4);
 
-  const missed = newEngine({ random: () => 0.9 });
-  missed.state.exp = 8;
-  missed.state.location = "lair";
-  missed.state.lairDepth = 4;
-  missed.state.floorEncounters = 2;
-  missed.state.miniBossDefeated = true;
-  const fountain = missed.handleExplore();
+  const fountainRun = newEngine({ random: () => 0.9 });
+  fountainRun.state.exp = 8;
+  fountainRun.state.location = "lair";
+  fountainRun.state.lairDepth = 4;
+  fountainRun.state.floorEncounters = 2;
+  fountainRun.state.miniBossDefeated = true;
+  const fountain = fountainRun.handleExplore();
   assert.match(text(fountain), /いずみ/);
   assert.match(text(fountain), /せきひ/);
-  assert.equal(missed.state.tabletFound, true);
-  assert.equal(missed.state.lairDepth, 4);
+  assert.equal(fountainRun.state.tabletFound, true);
+  assert.equal(fountainRun.state.lairDepth, 4);
+});
+
+test("a treasure chest room appears as its own floor stage", () => {
+  const engine = newEngine({ random: () => 0.1 });
+  engine.state.location = "lair";
+  engine.state.lairDepth = 1;
+  engine.state.floorEncounters = 2;
+  const goldBefore = engine.state.gold;
+  const result = engine.handleExplore();
+  assert.match(text(result), /たからばこを あけた！/);
+  assert.equal(engine.state.inBattle, false);
+  assert.equal(engine.state.lairDepth, 2);
+  assert.equal(engine.state.floorEncounters, 0);
+  assert.ok(engine.state.gold > goldBefore);
+  const next = engine.handleExplore();
+  assert.match(text(next), /さらに さぐった/);
+  assert.equal(engine.state.inBattle, true);
+  assert.equal(engine.state.floorEncounters, 1);
+  assert.equal(engine.state.lairDepth, 2);
+});
+
+test("the flulord deals at least 10 damage even with the best armor", () => {
+  const engine = newEngine({ random: () => 0 });
+  engine.state.location = "lair";
+  engine.state.inBattle = true;
+  engine.state.armorDefense = 12;
+  engine.state.hp = 80;
+  engine.state.maxHp = 80;
+  engine.state.enemy = { name: "インフルだいまおう", hp: 100, maxHp: 100, attack: 6, exp: 60, gold: 150, boss: true, rounds: 0 };
+  engine.handleAttack();
+  assert.equal(engine.state.hp, 70);
 });
 
 test("adventure timer runs from quest start to clear", async () => {

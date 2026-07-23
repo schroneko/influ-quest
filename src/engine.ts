@@ -671,9 +671,10 @@ ${artHtml}
     }
     const wasInfected = state.infected;
     const pierceArmor = enemy.name === "ナツカゼだいまおう";
+    const minDamage = enemy.name === "インフルだいまおう" ? 10 : 1;
     const damage = Math.max(
       enemy.attack + bonus + randInt(0, 2) - (pierceArmor ? 0 : state.armorDefense),
-      1,
+      minDamage,
     );
     state.hp -= damage;
     let line = `${attackIntro} ゆうしゃは ${damage} の ダメージを うけた！（のこり HP ${Math.max(state.hp, 0)}/${state.maxHp}）`;
@@ -1521,10 +1522,6 @@ ${artHtml}
           startBattle(oyadama),
       );
     }
-    if (state.lairDepth >= 3 && !state.tabletFound && random() < 0.5) {
-      state.tabletFound = true;
-      return okText(drain + TABLET_TEXT);
-    }
     if (state.lairDepth === 4 && state.floorEncounters === 2) {
       state.floorEncounters = 3;
       state.hp = state.maxHp;
@@ -1564,18 +1561,24 @@ ${artHtml}
           startBattle(flulord),
       );
     }
-    state.floorEncounters = 1;
-    const spawn = spawnFloorEnemy(state.lairDepth, 0);
-    let treasure = "";
     if (random() < 0.3) {
       const gold = randInt(5, 20);
       state.gold += gold;
-      treasure = `たからばこを みつけた！ ${gold}ゴールド を てにいれた！\n`;
+      return okText(
+        drain +
+          `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
+          [
+            "ちいさな へやに でた。まんなかに たからばこが ぽつんと おいてある。",
+            "",
+            `たからばこを あけた！ ${gold}ゴールド を てにいれた！`,
+          ].join("\n"),
+      );
     }
+    state.floorEncounters = 1;
+    const spawn = spawnFloorEnemy(state.lairDepth, 0);
     return okText(
       drain +
         `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
-        treasure +
         "\n" +
         spawn.intro +
         startBattle(spawn.enemy),
