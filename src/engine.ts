@@ -251,6 +251,7 @@ const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
   アルコールスプレー: "ゆうしゃは アルコールスプレーを ふきつけた！ シュッ！",
   じょきんのやり: "ゆうしゃは じょきんのやりを つきだした！ シュバッ！",
   でんせつのワクチンソード: "ゆうしゃは でんせつの ワクチンソードを ふりおろした！",
+  ロトのつるぎ: "ゆうしゃは ロトのつるぎを ふりおろした！ ザンッ！",
 };
 
 const TABLET_TEXT = [
@@ -1249,6 +1250,23 @@ ${logHtml}
             "15143ゴールド を てにいれた！",
             "アルコールスプレーと ファントムマスクを そうびした！",
             "かぜぐすりを 3つ てにいれた！",
+          ].join("\n"),
+        );
+      }
+      if (katakanaToHiragana(heroName).startsWith("ろと")) {
+        state.weapon = "ロトのつるぎ";
+        state.weaponAttack = weaponAttackByName["ロトのつるぎ"];
+        state.armor = "ロトのよろい";
+        state.armorDefense = armorDefenseByName["ロトのよろい"];
+        return okText(
+          [
+            ...successionLines,
+            `てんの こえ「そなたの なは ${state.heroName}。……その な、でんせつの けっとうの あかし！」`,
+            "",
+            "てんから ひかりが ふりそそいだ！",
+            `ロトのつるぎを そうびした！（こうげき力 ${attackPower()}）`,
+            `ロトのよろいを そうびした！（ぼうぎょ力 ${state.armorDefense}）`,
+            "でんせつの よろいは ウイルスを いっさい よせつけない！",
           ].join("\n"),
         );
       }

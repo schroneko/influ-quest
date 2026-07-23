@@ -98,6 +98,26 @@ test("naming the hero 4hieta grants the DQ1 haiku hero stats", async () => {
   assert.equal(engine.state.medicineCount, 3);
 });
 
+test("names starting with roto grant the legendary gear", async () => {
+  const engine = newEngine();
+  const result = await engine.handleNameHero({ name: "ろとたろう" });
+  assert.match(text(result), /ロトのつるぎ/);
+  assert.equal(engine.state.weapon, "ロトのつるぎ");
+  assert.equal(engine.state.weaponAttack, 40);
+  assert.equal(engine.state.armor, "ロトのよろい");
+  assert.equal(engine.state.armorDefense, 12);
+  assert.equal(engine.state.level, 1);
+
+  const katakana = newEngine();
+  await katakana.handleNameHero({ name: "ロト" });
+  assert.equal(katakana.state.weapon, "ロトのつるぎ");
+  assert.equal(katakana.state.armor, "ロトのよろい");
+
+  const plain = newEngine();
+  await plain.handleNameHero({ name: "ひろと" });
+  assert.equal(plain.state.weapon, "たいおんけい");
+});
+
 test("unknown jumon is rejected without changing state", () => {
   const engine = newEngine();
   const before = cloneState(engine.state);

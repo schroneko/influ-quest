@@ -7,24 +7,28 @@ export const weaponNames = [
   "アルコールスプレー",
   "じょきんのやり",
   "でんせつのワクチンソード",
+  "ロトのつるぎ",
 ] as const;
 export const armorNames = [
   "ふだんぎ",
   "ファントムマスク",
   "N95マスク",
   "かんせんたいさくスーツ",
+  "ロトのよろい",
 ] as const;
 export const armorDefenseByName = {
   ふだんぎ: 0,
   ファントムマスク: 2,
   N95マスク: 4,
   かんせんたいさくスーツ: 7,
+  ロトのよろい: 12,
 } as const;
 export const infectionChanceByArmor = {
   ふだんぎ: 0.35,
   ファントムマスク: 0.25,
   N95マスク: 0.12,
   かんせんたいさくスーツ: 0.05,
+  ロトのよろい: 0,
 } as const;
 export const enemyNames = [
   "くしゃみこぞう",
@@ -43,6 +47,7 @@ export const weaponAttackByName = {
   アルコールスプレー: 14,
   じょきんのやり: 22,
   でんせつのワクチンソード: 30,
+  ロトのつるぎ: 40,
 } as const;
 export const maxJumonLength = 8192;
 export const maxHeroNameCodePoints = 24;
