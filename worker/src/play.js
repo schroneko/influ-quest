@@ -2032,6 +2032,12 @@ const PLAY_PAGE = String.raw`<!doctype html>
   const scrollDown = () => {
     log.scrollTop = log.scrollHeight;
   };
+  const scrollDownInstant = () => {
+    const previous = log.style.scrollBehavior;
+    log.style.scrollBehavior = "auto";
+    log.scrollTop = log.scrollHeight;
+    log.style.scrollBehavior = previous;
+  };
   const announceText = (text) => {
     announce.textContent = "";
     window.setTimeout(() => {
@@ -2158,11 +2164,11 @@ const PLAY_PAGE = String.raw`<!doctype html>
       }
       let index = 0;
       const step = () => {
-        index += 3;
+        index += 2;
         body.textContent = chars.slice(0, index).join("");
-        scrollDown();
+        scrollDownInstant();
         if (index < chars.length) {
-          window.setTimeout(step, 24);
+          window.setTimeout(step, 32);
           return;
         }
         window.setTimeout(() => {
