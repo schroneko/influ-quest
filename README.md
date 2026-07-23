@@ -94,7 +94,9 @@ wrangler secret put ANTHROPIC_API_KEY --config worker/wrangler.jsonc
 wrangler tail influ-quest --config worker/wrangler.jsonc --format pretty
 ```
 
-を流しっぱなしにした状態で症状を再現すると、`session restore failed:` のログにセッション ID 先頭 8 桁・失敗理由・スキーマ違反の内訳・直前のセーブ内容（名前/レベル/場所/階層/保存時刻）が出ます。セーブ復元に失敗してもデータは消さず 503 を返す設計なので、ログを取ってから原因を修正すれば同じセッションで再開できます。Workers Logs（ダッシュボード）でも同じログを後から検索できます。
+を流しっぱなしにした状態で症状を再現すると、`session restore failed:` のログにセッション ID 先頭 8 桁・失敗理由・スキーマ違反の内訳・直前のセーブ内容（名前/レベル/場所/階層/保存時刻）が出ます。セーブ復元に失敗してもデータは消さず 503 を返す設計なので、ログを取ってから原因を修正すれば同じセッションで再開できます。Workers Logs（ダッシュボード）でも同じログを後から検索できます。ブラウザ版クライアントは各応答時に `client log:` としてビルド ID と描画状況を同じログへ自己申告するため、端末側の実行バージョンもここで特定できます。
+
+本番の `/api/chat` に対して検証用の勇者を作った場合は、検証セッションの最後に必ず「はじめから やりなおす」を送信して、その勇者をボードから削除してください。消し忘れた場合は PLAYERS namespace に対して `wrangler kv key list` で対象キーを特定し、`wrangler kv bulk delete` で削除します。検証用勇者をボードに残したままにしてはいけません。
 
 ## テスト
 
