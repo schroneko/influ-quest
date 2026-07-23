@@ -2433,6 +2433,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
     "ざじずぜぞだぢづでど",
     "ばびぶべぼぱぴぷぺぽ",
     "ぁぃぅぇぉゃゅょっー",
+    "0123456789",
   ];
   const NAME_MAX = 6;
   let heroName = "";
