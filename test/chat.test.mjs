@@ -304,7 +304,7 @@ test("はい confirms a purchase the assistant just proposed", async () => {
         ],
       },
     ],
-    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 500, location: "office" }),
+    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 500, location: "town" }),
   });
   await withMockedFetch(
     [
@@ -327,7 +327,7 @@ test("unsolicited purchases without player intent fall back to the shop listing"
     playerId: PLAYER_ID,
     turns: 0,
     messages: [],
-    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 300, location: "office" }),
+    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 300, location: "town" }),
   });
   await withMockedFetch(
     [
@@ -648,7 +648,7 @@ test("cleared heroes can still browse and buy at the shops", async () => {
       hostGreeted: true,
       cleared: true,
       bossDefeated: true,
-      location: "office",
+      location: "town",
       gold: 1000,
     }),
   });
@@ -665,7 +665,7 @@ test("pharmacy scene offers the bed rest command", async () => {
     playerId: PLAYER_ID,
     turns: 0,
     messages: [],
-    save: createSave({ heroName: "てすと", hostGreeted: true, location: "office", gold: 100 }),
+    save: createSave({ heroName: "てすと", hostGreeted: true, location: "town", gold: 100 }),
   });
   const response = await handleChat(createChatRequest("くすりやを のぞく"), createChatEnv(), undefined, store);
   assert.equal(response.status, 200);
@@ -709,7 +709,7 @@ test("rta clear responds with a share url and post-ending suggestions", async ()
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";
-  state.location = "office";
+  state.location = "town";
   assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ（6G）"), [{ name: "rest" }]);
   assert.deepEqual(routeDirectCommand(state, "きゅうけいしつで やすむ（6G）"), [{ name: "rest" }]);
   assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ"), [{ name: "rest" }]);

@@ -365,10 +365,10 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.move, !battle);
     setEnabled(tools.talk, !battle);
     setEnabled(tools.explore, !battle && state.location === "lair");
-    setEnabled(tools.rest, !battle && state.location === "office");
-    setEnabled(tools.weaponShop, !battle && state.location === "office");
-    setEnabled(tools.armorShop, !battle && state.location === "office");
-    setEnabled(tools.pharmacy, !battle && state.location === "office");
+    setEnabled(tools.rest, !battle && state.location === "town");
+    setEnabled(tools.weaponShop, !battle && state.location === "town");
+    setEnabled(tools.armorShop, !battle && state.location === "town");
+    setEnabled(tools.pharmacy, !battle && state.location === "town");
     setEnabled(tools.medicine, state.medicineCount > 0);
     setEnabled(tools.fukkatsu, !battle);
     setEnabled(tools.answerHost, !battle && state.hostAsking);

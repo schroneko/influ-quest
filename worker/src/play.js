@@ -135,7 +135,7 @@ function buildSuggestions(state, sceneText) {
   if (state.heroName === heroPlaceholderName && !state.cleared) {
     return [];
   }
-  if (sceneText && !state.inBattle && !state.hostAsking && state.location === "office") {
+  if (sceneText && !state.inBattle && !state.hostAsking && state.location === "town") {
     if (/かいますか|買いますか|かうか？|こうにゅうしますか/.test(sceneText)) {
       return ["はい", "いいえ"];
     }
@@ -221,7 +221,7 @@ function buildSuggestions(state, sceneText) {
     if (state.cheatCleared) {
       return ["はじめから やりなおす"];
     }
-    if (state.location === "office") {
+    if (state.location === "town") {
       return [
         "ぶきやを のぞく",
         "ぼうぐやを のぞく",
@@ -258,7 +258,7 @@ function buildSuggestions(state, sceneText) {
         add("だいじんと はなす");
       }
     }
-  } else if (state.location === "office") {
+  } else if (state.location === "town") {
     const townOptions = [];
     if (state.princessCarried) {
       townOptions.push("ちょまどひめを おおてまちじょうへ とどける");
@@ -324,8 +324,8 @@ function pickImage(state, reply) {
   if (state.location === "venue") {
     return `${base}/locations/event-venue.webp`;
   }
-  if (state.location === "office") {
-    return `${base}/locations/office-district.webp`;
+  if (state.location === "town") {
+    return `${base}/locations/town.webp`;
   }
   if (reply.includes("ふるびた せきひ")) {
     return `${base}/locations/stone-tablet.webp`;
@@ -338,7 +338,7 @@ function pickImage(state, reply) {
       ? `${base}/characters/princess.webp`
       : `${base}/locations/boss-chamber.webp`;
   }
-  if (state.lairDepth === 4) {
+  if (state.lairDepth === 4 && reply.includes("いずみ")) {
     return `${base}/locations/healing-spring.webp`;
   }
   return `${base}/locations/virus-lair-entrance.webp`;
@@ -581,7 +581,7 @@ export function routeFuzzyCommand(state, rawMessage) {
   if (/かぜぐすり|くすりをのむ/.test(msg) && /のむ|飲/.test(msg)) {
     return [{ name: "medicine" }];
   }
-  if (state.location === "office" && buyish) {
+  if (state.location === "town" && buyish) {
     for (const name of Object.keys(WEAPON_SHOP)) {
       if (msg.includes(name)) {
         return [{ name: "weapon_shop", args: { item: name } }];
@@ -2125,7 +2125,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       pressTimer = window.setTimeout(() => {
         pressTimer = null;
         longPressed = true;
-        setCreditsRate(2);
+        setCreditsRate(3);
       }, 300);
     });
     const releaseFast = () => {

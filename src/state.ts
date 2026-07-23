@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { z } from "zod";
 
-export const locationIds = ["venue", "office", "lair"] as const;
+export const locationIds = ["venue", "town", "lair"] as const;
 export const weaponNames = [
   "たいおんけい",
   "アルコールスプレー",
@@ -422,6 +422,9 @@ export function readStoredGameData(
   }
   if (isRecord(value) && isRecord(value.enemy) && value.enemy.name === "なつかぜだいまおう") {
     value = { ...value, enemy: { ...value.enemy, name: "ナツカゼだいまおう" } };
+  }
+  if (isRecord(value) && value.location === "office") {
+    value = { ...value, location: "town" };
   }
   if (isRecord(value) && "version" in value) {
     if (value.version !== 1) {

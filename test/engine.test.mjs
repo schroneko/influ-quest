@@ -190,6 +190,29 @@ test("accepting the demon lord offer causes the virus king bad end", async () =>
   assert.equal(engine.snapshot().virusKing, true);
 });
 
+test("bosses drop no exp or gold", () => {
+  const engine = newEngine();
+  engine.state.level = 5;
+  engine.state.exp = 120;
+  engine.state.maxHp = 62;
+  engine.state.hp = 62;
+  engine.state.weapon = "でんせつのワクチンソード";
+  engine.state.weaponAttack = 30;
+  engine.state.location = "lair";
+  engine.state.lairDepth = 5;
+  engine.handleExplore();
+  const goldBefore = engine.state.gold;
+  const expBefore = engine.state.exp;
+  let last = "";
+  while (engine.state.inBattle) {
+    last = text(engine.handleAttack());
+  }
+  assert.match(last, /インフルだいまおうを たおした！/);
+  assert.doesNotMatch(last, /かくとく/);
+  assert.equal(engine.state.gold, goldBefore);
+  assert.equal(engine.state.exp, expBefore);
+});
+
 test("game over wakes the hero at the clinic with half gold", () => {
   const engine = newEngine();
   engine.state.location = "lair";
@@ -202,7 +225,7 @@ test("game over wakes the hero at the clinic with half gold", () => {
   const result = engine.handleAttack();
   assert.match(text(result), /ゲームオーバー/);
   assert.match(text(result), /くすりや/);
-  assert.equal(engine.state.location, "office");
+  assert.equal(engine.state.location, "town");
   assert.equal(engine.state.gold, 50);
   assert.equal(engine.state.hp, engine.state.maxHp);
   assert.equal(engine.state.infected, false);
@@ -248,7 +271,7 @@ test("armor reduces incoming damage", () => {
 
 test("shops equip the hero and medicine cures the flu", () => {
   const engine = newEngine();
-  engine.state.location = "office";
+  engine.state.location = "town";
   engine.state.gold = 400;
   const weaponBuy = engine.handleWeaponShop({ item: "アルコールスプレー" });
   assert.match(text(weaponBuy), /そうびした/);
@@ -267,7 +290,7 @@ test("shops equip the hero and medicine cures the flu", () => {
 
 test("shop runtime boundaries reject prototype keys and redirect cross-category items", () => {
   const engine = newEngine();
-  engine.state.location = "office";
+  engine.state.location = "town";
   engine.state.gold = 300;
   const before = cloneState(engine.state);
   const protoResult = engine.handleWeaponShop({ item: "__proto__" });
@@ -448,7 +471,7 @@ test("fleeing from the depth-three mini-boss does not bypass it", () => {
 test("toolsChanged fires when medicine availability crosses zero", () => {
   let changed = 0;
   const engine = newEngine({ toolsChanged: () => { changed += 1; } });
-  engine.state.location = "office";
+  engine.state.location = "town";
   engine.state.gold = 300;
   engine.handlePharmacy({ item: "かぜぐすり" });
   assert.equal(changed, 1);
@@ -471,7 +494,7 @@ test("spells reject invisible characters before mutating state or logs", () => {
 
 test("resting cures influenza", () => {
   const engine = newEngine();
-  engine.state.location = "office";
+  engine.state.location = "town";
   engine.state.gold = 10;
   engine.state.infected = true;
   engine.state.hp = 10;
@@ -649,7 +672,8 @@ test("the fountain appears right before the boss after clearing floor four", () 
   engine.state.hp = 5;
   const result = engine.handleExplore();
   assert.match(text(result), /いずみ/);
-  assert.match(text(result), /インフルだいまおうが まっている/);
+  assert.match(text(result), /すさまじい けはい/);
+  assert.doesNotMatch(text(result), /インフルだいまおう/);
   assert.equal(engine.state.hp, engine.state.maxHp);
   assert.equal(engine.state.lairDepth, 4);
   const next = engine.handleExplore();

@@ -18,7 +18,7 @@ export type LocationId = GameState["location"];
 
 export const locationDisplayNames: Record<LocationId, string> = {
   venue: "おおてまちじょう",
-  office: "まもりのまち",
+  town: "まもりのまち",
   lair: "ウイルスのすみか",
 };
 
@@ -159,8 +159,8 @@ const flulord: Enemy = {
   hp: 100,
   maxHp: 100,
   attack: 6,
-  exp: 100,
-  gold: 300,
+  exp: 0,
+  gold: 0,
   boss: true,
   rounds: 0,
 };
@@ -169,8 +169,8 @@ const natsukaze: Enemy = {
   hp: 200,
   maxHp: 200,
   attack: 2,
-  exp: 200,
-  gold: 500,
+  exp: 0,
+  gold: 0,
   boss: true,
   rounds: 0,
 };
@@ -311,16 +311,6 @@ const PRINCESS_TEXT = [
   "あなたは ちょまどひめを かつぎあげた！",
   "（ちょまどひめを おおてまちじょうへ とどけよう）",
 ].join("\n");
-
-const OFFICE_LINES = [
-  "まちのひと「ここは まもりのまちだ。さいきん インフルが はやっていて こわいよ。」",
-  "まちのひと「ウイルスのすみかに はいった ぼうけんしゃは みんな ねつを だして かえってくるらしいぜ……」",
-  "まちのひと「ぶきやと ぼうぐやで そうびを ととのえて いくといい。」",
-  "くすりや「つかれたら うちの おくの ベッドで やすんで いきなされ。ひとやすみ 6ゴールドですぞ。」",
-  "まちのひと「てあらいと うがいは さいきょうの ぼうぎょまほう さ。」",
-  "まちのひと「マスクは かざりじゃ ないぜ。インフルエンザに かかると こうげきが はんげんに なっちまう。」",
-  "まちのひと「すみかの ウイルスは とつぜんへんいして つよくなる ことが あるらしいぜ。」",
-];
 
 const mutatedNames: Partial<Record<Enemy["name"], Enemy["name"]>> = {
   ウイルスりゅうし: "へんいした ウイルスりゅうし",
@@ -704,7 +694,7 @@ ${logHtml}
       state.gold = Math.floor(state.gold / 2);
       state.hp = state.maxHp;
       state.infected = false;
-      state.location = "office";
+      state.location = "town";
       state.lairDepth = 0;
       state.floorEncounters = 0;
       state.defeatedEnemies = [];
@@ -1029,7 +1019,7 @@ ${logHtml}
     if (state.infected) {
       return ["くすりやで やすんで なおす（まもりのまち）", "かぜぐすりを のむ", "むりを しない"];
     }
-    if (state.location === "office") {
+    if (state.location === "town") {
       return [
         "weapon_shop で ぶきを みる",
         "armor_shop で ぼうぐを みる",
@@ -1391,13 +1381,15 @@ ${logHtml}
       }
       return okText("だいじん「……。」\nだいじんは もう なにも くれない ようだ。");
     }
-    if (state.location === "office") {
-      return okText(pick(OFFICE_LINES));
-    }
     if (state.hostAsking) {
       return okText(await hostEvent());
     }
-    if (state.bossDefeated && !state.princessCarried && state.lairDepth >= 5) {
+    if (
+      state.location === "lair" &&
+      state.bossDefeated &&
+      !state.princessCarried &&
+      state.lairDepth >= 5
+    ) {
       state.princessCarried = true;
       let rescue = PRINCESS_TEXT;
       if (state.heroName.startsWith("ちょまど")) {
@@ -1422,7 +1414,7 @@ ${logHtml}
     }
     const destinations: Record<string, LocationId> = {
       おおてまちじょう: "venue",
-      まもりのまち: "office",
+      まもりのまち: "town",
       ウイルスのすみか: "lair",
     };
     const location = hasOwn(destinations, destination) ? destinations[destination] : undefined;
@@ -1444,7 +1436,7 @@ ${logHtml}
     const prefix = state.princessCarried ? "ちょまどひめを かついだまま いどうした。\n\n" : "";
     const arrival: Record<LocationId, string> = {
       venue: "おおてまちじょうに ついた。ぎょくざのまで だいじんが まっている。",
-      office: "ここは まもりのまちだ。ぶきや・ぼうぐや・くすりやが ある。",
+      town: "ここは まもりのまちだ。ぶきや・ぼうぐや・くすりやが ある。",
       lair: "ウイルスのすみかに はいった。あたりは ウイルスだらけだ……（おくへ すすもう）",
     };
     return okText(maybeTelepathy(prefix + arrival[location]));
@@ -1511,17 +1503,16 @@ ${logHtml}
         );
       }
     }
-    if (state.lairDepth === 3 && !state.miniBossDefeated) {
-      return okText(
-        drain +
+    const miniBossStage = (prefix: string): ToolResult =>
+      okText(
+        prefix +
           "みちを ふさぐ おおきな かげ……！\nへんいかぶの おやだまが たちはだかった！\n\n" +
           startBattle(oyadama),
       );
-    }
-    if (state.lairDepth === 4 && !state.tabletFound) {
+    const tabletStage = (prefix: string): ToolResult => {
       state.tabletFound = true;
       return okText(
-        drain +
+        prefix +
           [
             "すみかの さいしんぶに ちかづいて きた。",
             "みちの わきに、ふるびた せきひが たっている……。",
@@ -1529,8 +1520,8 @@ ${logHtml}
             TABLET_TEXT,
           ].join("\n"),
       );
-    }
-    if (state.lairDepth === 4 && state.floorEncounters < 3) {
+    };
+    const fountainStage = (prefix: string): ToolResult => {
       state.floorEncounters = 3;
       state.hp = state.maxHp;
       const cured = state.infected;
@@ -1539,9 +1530,18 @@ ${logHtml}
         "すみかの さいしんぶで きよらかな いずみを みつけた。",
         `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
         ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
-        "（この さきに インフルだいまおうが まっている……じゅんびは いいか）",
+        "（この さきから すさまじい けはいが する……じゅんびは できているか）",
       ];
-      return okText(maybeTelepathy(fountainLines.join("\n")));
+      return okText(maybeTelepathy(prefix + fountainLines.join("\n")));
+    };
+    if (state.lairDepth === 3 && !state.miniBossDefeated) {
+      return miniBossStage(drain);
+    }
+    if (state.lairDepth === 4 && !state.tabletFound) {
+      return tabletStage(drain);
+    }
+    if (state.lairDepth === 4 && state.floorEncounters < 3) {
+      return fountainStage(drain);
     }
     state.lairDepth += 1;
     state.floorEncounters = 0;
@@ -1575,6 +1575,16 @@ ${logHtml}
     }
     const remaining = remainingForFloor(state.lairDepth);
     if (remaining.length === 0) {
+      const advancePrefix = drain + `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n\n`;
+      if (state.lairDepth === 3 && !state.miniBossDefeated) {
+        return miniBossStage(advancePrefix);
+      }
+      if (state.lairDepth === 4 && !state.tabletFound) {
+        return tabletStage(advancePrefix);
+      }
+      if (state.lairDepth === 4 && state.floorEncounters < 3) {
+        return fountainStage(advancePrefix);
+      }
       return okText(
         drain +
           `すみかを すすんだ……（${floorLabel(state.lairDepth)}）\n` +
@@ -1617,7 +1627,13 @@ ${logHtml}
       }
       lines.push(`${enemy.name}を たおした！`);
       state.gold += enemy.gold;
-      lines.push(`けいけんち ${enemy.exp}、${enemy.gold}ゴールド を かくとく！`);
+      const gains = [
+        ...(enemy.exp > 0 ? [`けいけんち ${enemy.exp}`] : []),
+        ...(enemy.gold > 0 ? [`${enemy.gold}ゴールド`] : []),
+      ];
+      if (gains.length > 0) {
+        lines.push(`${gains.join("、")} を かくとく！`);
+      }
       if (enemy.name === "ナツカゼだいまおう") {
         lines.push(...gainExp(enemy.exp));
         lines.push("", secretBossEnd());
@@ -1682,7 +1698,7 @@ ${logHtml}
     if (blocked) {
       return blocked;
     }
-    if (state.location !== "office") {
+    if (state.location !== "town") {
       return errorText("やすめるのは まもりのまちの くすりやだ。");
     }
     if (state.gold < 6) {
@@ -1716,7 +1732,7 @@ ${logHtml}
     if (blocked) {
       return blocked;
     }
-    if (state.location !== "office") {
+    if (state.location !== "town") {
       return errorText("ぶきやは まもりのまちに ある。");
     }
     if (!item) {
@@ -1768,7 +1784,7 @@ ${logHtml}
     if (blocked) {
       return blocked;
     }
-    if (state.location !== "office") {
+    if (state.location !== "town") {
       return errorText("ぼうぐやは まもりのまちに ある。");
     }
     if (!item) {
@@ -1824,7 +1840,7 @@ ${logHtml}
     if (blocked) {
       return blocked;
     }
-    if (state.location !== "office") {
+    if (state.location !== "town") {
       return errorText("くすりやは まもりのまちに ある。");
     }
     if (!item) {
