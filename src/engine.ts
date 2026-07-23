@@ -603,7 +603,7 @@ ${artHtml}
 
   function gainExp(amount: number): string[] {
     const lines: string[] = [];
-    state.exp += amount;
+    state.exp = Math.min(state.exp + amount, 999999);
     while (state.level < expTable.length && state.exp >= expTable[state.level]) {
       state.level += 1;
       state.maxHp += 8;

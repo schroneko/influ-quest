@@ -403,6 +403,9 @@ export function readStoredGameData(
 ):
   | { ok: true; format: "legacy" | "v1"; state: GameState; gameLog: string[]; savedAt?: string }
   | { ok: false; reason: "invalid" | "future-version"; issues?: string[] } {
+  if (isRecord(value) && typeof value.exp === "number" && value.exp > 999999) {
+    value = { ...value, exp: 999999 };
+  }
   if (isRecord(value) && "version" in value) {
     if (value.version !== 1) {
       return { ok: false, reason: "future-version" };

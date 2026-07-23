@@ -44,6 +44,22 @@ test("readStoredGameData preserves trusted battle state when requested", () => {
   assert.equal(restored.state.enemy.name, "ウイルスりゅうし");
 });
 
+test("readStoredGameData clamps overflowing exp instead of failing", () => {
+  const state = createInitialState();
+  const save = JSON.parse(
+    JSON.stringify({
+      version: 1,
+      ...state,
+      exp: 1000007,
+      gameLog: [],
+      savedAt: new Date().toISOString(),
+    }),
+  );
+  const restored = readStoredGameData(save);
+  assert.equal(restored.ok, true);
+  assert.equal(restored.state.exp, 999999);
+});
+
 test("v1 save without fanMode still restores with default", () => {
   const state = createInitialState();
   const save = JSON.parse(

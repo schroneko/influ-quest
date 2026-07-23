@@ -494,6 +494,19 @@ test("each floor needs two zako encounters with different enemies", () => {
   assert.equal(engine.state.floorEncounters, 1);
 });
 
+test("exp gains are capped so moyomoto saves stay within schema range", () => {
+  const engine = newEngine();
+  engine.state.level = 48;
+  engine.state.exp = 999999;
+  engine.state.maxHp = 406;
+  engine.state.hp = 406;
+  engine.state.location = "lair";
+  engine.state.inBattle = true;
+  engine.state.enemy = { name: "せきしぶき", hp: 1, maxHp: 14, attack: 5, exp: 10, gold: 18, boss: false, rounds: 0 };
+  engine.handleAttack();
+  assert.equal(engine.state.exp, 999999);
+});
+
 test("mysterious voice grants 500 gold only once", () => {
   const engine = newEngine();
   const granted = engine.handleMysteriousVoice();
