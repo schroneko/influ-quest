@@ -263,17 +263,6 @@ const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
   でんせつのワクチンソード: "ゆうしゃは でんせつの ワクチンソードを ふりおろした！",
 };
 
-export const SYRINGE_ART = [
-  "　　　　▄▄",
-  "　　　▐██▌",
-  "　　▄▄▐██▌▄▄",
-  "　　▀▀▐██▌▀▀",
-  "　　　▐██▌",
-  "　　　▐██▌",
-  "　　　▝▜▛▘",
-  "　　　　▼",
-].join("\n");
-
 const TABLET_TEXT = [
   "すみかの かべに ふるびた せきひが ある。",
   "こだいの もじで こう かかれている……",
@@ -576,8 +565,6 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
       state.inBattle && state.enemy
         ? `<div class="enemy">たたかい: ${esc(state.enemy.name)}（HP ${state.enemy.hp}）</div>`
         : "";
-    const artHtml =
-      state.cleared || state.cheatCleared ? `<pre class="art">${esc(SYRINGE_ART)}</pre>` : "";
     return `<meta charset="utf-8">
 <title>インフルクエスト ぼうけんのしょ</title>
 <style>
@@ -597,7 +584,6 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
   .hurt { color: var(--hurt); }
   .heal { color: var(--heal); }
   .flag { color: var(--gold); }
-  .art { font-family: inherit; color: var(--gold); line-height: 1.35; overflow-x: auto; }
   .foot { text-align: center; color: var(--dim); font-size: 12px; }
 </style>
 <div class="wrap">
@@ -619,7 +605,6 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
   </div>
   <div class="win log">
 ${logHtml}
-${artHtml}
   </div>
   <div class="foot">MCP サーバー influenza-quest の ぼうけんのしょ</div>
 </div>`;
@@ -861,8 +846,6 @@ ${artHtml}
           "ちょまどひめ「はやすぎません！？」",
           "あなたは ちょまどひめを かかえて おおてまちじょうへ もどった。",
           "",
-          SYRINGE_ART,
-          "",
           "＊＊ クリア！（爆速RTA） ＊＊",
           state.clearMs <= 3000
             ? "とんでもない タイムが きろくされた！"
@@ -896,8 +879,6 @@ ${artHtml}
         "",
         "ゲームマスター「ゆうしゃさまが たおして くれた しゅんかん、ねつが すっと ひいたの。",
         "ちょまどひめも、まちの みんなも、わたしも……ぜんいん たすかった！」",
-        "",
-        SYRINGE_ART,
         "",
         "＊＊ しんの エンディング ＊＊",
         "",
@@ -1009,8 +990,6 @@ ${artHtml}
         "",
         "ちょまどひめは えがおで まつりの ステージへと かけだして いった。",
         "しろじゅうが はくしゅに つつまれる。",
-        "",
-        SYRINGE_ART,
         "",
         "あなたは 【めんえきのゆうしゃ】の しょうごうを えた！",
         "せかいに けんこうが もどった。",
@@ -1331,7 +1310,7 @@ ${artHtml}
               "じつは、きに なることが あるのです。",
               "ゲームマスターの ぬこぬこさまが、さっきから ねつっぽくて うなされて いるみたいで……」",
               "",
-              "（うらに かくされた たたかいの よかんが する。",
+              "（たたかいの よかんが する。",
               "『うでだめしを する』と となえて みよう……）",
             ].join("\n"),
           );
