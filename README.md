@@ -26,14 +26,14 @@ claude mcp add -s user influ-quest -- npx -y github:schroneko/influ-quest
 
 ## MCP の学び要素
 
-| 機能                       | ゲーム内の対応                                                                     |
-| -------------------------- | ---------------------------------------------------------------------------------- |
-| Tools                      | ぼうけんのコマンド一式（talk / move / explore / attack など）                      |
-| tools/list_changed         | 場所や戦闘状態でツールの有効・無効が切り替わる                                     |
-| Resources                  | `influenza://status`（つよさ）、`influenza://map`、`influenza://fukkatsu-no-jumon` |
-| Prompts                    | `start-adventure`                                                                  |
-| Elicitation                | インフルだいまおうの「とうだんわくの はんぶんを やろう」への はい・いいえ          |
-| プロンプトインジェクション | すみか深部の石碑に仕込んだ隠し要素（本 README 末尾のネタバレ解説を参照）           |
+| 機能                       | ゲーム内の対応                                                            |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Tools                      | ぼうけんのコマンド一式（talk / move / explore / attack など）             |
+| tools/list_changed         | 場所や戦闘状態でツールの有効・無効が切り替わる                            |
+| Resources                  | `influenza://status`（つよさ）、`influenza://map`                         |
+| Prompts                    | `start-adventure`                                                         |
+| Elicitation                | インフルだいまおうの「とうだんわくの はんぶんを やろう」への はい・いいえ |
+| プロンプトインジェクション | すみか深部の石碑に仕込んだ隠し要素（本 README 末尾のネタバレ解説を参照）  |
 
 Elicitation 非対応クライアントは `answer_host` ツールで、tools/list_changed 非対応クライアントは `perform_action` ツールでフォールバックできます。
 
