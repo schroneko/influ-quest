@@ -425,7 +425,7 @@ export function routeDirectCommand(state, rawMessage) {
   }
   const msg = rawMessage
     .normalize("NFKC")
-    .replace(/（[^）]*）/g, "")
+    .replace(/[（(][^）)]*[）)]/g, "")
     .replace(/[\s、。！!？?]/g, "");
   if (!msg || msg.length > 40) {
     return null;

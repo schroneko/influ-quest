@@ -7,6 +7,7 @@ import {
   isExplicitNewGameCommand,
   playPage,
   readChatRequestEnvelope,
+  routeDirectCommand,
 } from "../worker/src/play.js";
 import {
   BrowserChatSession,
@@ -454,4 +455,13 @@ test("BrowserChatSession serializes concurrent requests for one session", async 
   const responses = await Promise.all([first, second]);
   assert.deepEqual(responses.map((response) => response.status), [200, 200]);
   assert.equal(maxActiveWrites, 1);
+});
+
+test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
+  const state = createInitialState();
+  state.heroName = "てすと";
+  state.location = "office";
+  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ（6G）"), [{ action: "rest" }]);
+  assert.deepEqual(routeDirectCommand(state, "きゅうけいしつで やすむ（6G）"), [{ action: "rest" }]);
+  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ"), [{ action: "rest" }]);
 });
