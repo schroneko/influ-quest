@@ -2,7 +2,6 @@ import {
   appendGameText,
   armorDefenseByName,
   createInitialState,
-  encodeJumon,
   infectionChanceByArmor,
   katakanaToHiragana,
   maxHeroNameCodePoints,
@@ -51,7 +50,6 @@ export const performableActionNames = [
   "attack",
   "run",
   "rest",
-  "clinic",
   "weapon_shop",
   "armor_shop",
   "pharmacy",
@@ -322,7 +320,7 @@ const OFFICE_LINES = [
   "まちのひと「ここは まもりのまちだ。さいきん インフルが はやっていて こわいよ。」",
   "まちのひと「ウイルスのすみかに はいった ぼうけんしゃは みんな ねつを だして かえってくるらしいぜ……」",
   "まちのひと「ぶきやと ぼうぐやで そうびを ととのえて いくといい。」",
-  "くすりや「しんりょうじょで ぼうけんのしょに きろく できますぞ。ふっかつのじゅもんは メモ しておきなされ。」",
+  "くすりや「むりは いかんぞ。たおれた ものは しんりょうじょの ベッドに はこばれて くるのですぞ。」",
   "まちのひと「てあらいと うがいは さいきょうの ぼうぎょまほう さ。」",
   "まちのひと「マスクは かざりじゃ ないぜ。インフルエンザに かかると こうげきが はんげんに なっちまう。」",
   "まちのひと「すみかの ウイルスは とつぜんへんいして つよくなる ことが あるらしいぜ。」",
@@ -1582,26 +1580,6 @@ ${artHtml}
     return okText(maybeTelepathy(lines.join("\n")));
   }
 
-  function handleClinic(): ToolResult {
-    const blocked = requireNotInBattle("いまは きろくできない。");
-    if (blocked) {
-      return blocked;
-    }
-    if (state.location !== "office") {
-      return errorText("しんりょうじょは まもりのまちに ある。");
-    }
-    persist();
-    return okText(
-      [
-        "いし「ここは しんりょうじょ。ぼうけんの きろくを ふっかつのじゅもんに して わたす ばしょ ですぞ。」",
-        "いし「そなたの ぼうけんを きろく しましたぞ。この じゅもんを メモ して おきなされ。」",
-        "",
-        "ふっかつのじゅもん:",
-        encodeJumon(state, gameLog),
-      ].join("\n"),
-    );
-  }
-
   function handleWeaponShop({ item }: { item?: string }): ToolResult {
     const blocked = requireNotInBattle("せんとうちゅうに かいものは できない。");
     if (blocked) {
@@ -1893,23 +1871,32 @@ ${artHtml}
         return errorText("でんせつの じゅもんが みだれた。もういちど ためしてくれ。");
       }
     }
-    if (normalizedJumon.includes("ふるいけやかわずとびこむみずのおとばしや")) {
+    if (normalizedJumon.includes("ふるいけやかわずとびこむ")) {
       try {
         const basho = persistTransaction(() => {
+          state.heroName = "4ひえた";
           state.level = 10;
-          state.exp = 999999;
+          state.exp = 2898;
           state.maxHp = maxHpForLevel(10);
           state.hp = state.maxHp;
           state.gold = 15143;
+          state.weapon = "アルコールスプレー";
+          state.weaponAttack = weaponAttackByName["アルコールスプレー"];
+          state.armor = "ファントムマスク";
+          state.armorDefense = armorDefenseByName["ファントムマスク"];
+          state.medicineCount = 3;
           if (state.startedAtMs === 0) {
             state.startedAtMs = now();
           }
           return [
             "ふっかつのじゅもんが うけいれられた！",
             "",
-            "ふるい いけの ほとりで、みずおとと ともに ちからが よみがえる……。",
-            "レベルが 10 に あがった！（HP " + state.hp + "/" + state.maxHp + "）",
+            "ふるい いけの ほとりで、みずおとと ともに いにしえの ゆうしゃが よみがえる……。",
+            "そなたの なは 4ひえた！",
+            "レベルは 10（HP " + state.hp + "/" + state.maxHp + "）けいけんち 2898。",
             "15143ゴールド を てにいれた！",
+            "アルコールスプレーと ファントムマスクを そうびした！",
+            "かぜぐすりを 3つ てにいれた！",
           ].join("\n");
         });
         return okText(basho);
@@ -1998,8 +1985,6 @@ ${artHtml}
         return handleRun();
       case "rest":
         return handleRest();
-      case "clinic":
-        return handleClinic();
       case "weapon_shop":
         return handleWeaponShop({ item: typeof args.item === "string" ? args.item : undefined });
       case "armor_shop":
@@ -2037,7 +2022,6 @@ ${artHtml}
     statusText,
     screenHtml,
     startAdventureText,
-    currentJumon: () => encodeJumon(state, gameLog),
     errorText,
     handleStatus,
     handleStartAdventure,
@@ -2048,7 +2032,6 @@ ${artHtml}
     handleAttack,
     handleRun,
     handleRest,
-    handleClinic,
     handleWeaponShop,
     handleArmorShop,
     handlePharmacy,

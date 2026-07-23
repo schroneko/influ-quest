@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { createEngine } from "../dist/engine.js";
-import { createInitialState, decodeJumon } from "../dist/state.js";
+import { createInitialState } from "../dist/state.js";
 
 function newEngine(io = {}) {
   return createEngine({ state: createInitialState(), gameLog: [] }, { random: () => 0, ...io });
@@ -52,22 +52,26 @@ test("gargle spell heals and name spells fizzle", () => {
   assert.match(text(fizzled), /なにも おこらなかった/);
 });
 
-test("clinic issues a jumon keepsake but codes cannot restore state", async () => {
+test("basho jumon revives the hero 4hieta", () => {
   const engine = newEngine();
-  await engine.handleNameHero({ name: "てすと" });
-  await engine.handleTalk();
-  engine.handleMove({ destination: "まもりのまち" });
-  const saved = engine.handleClinic();
-  const jumon = text(saved).split("\n").at(-1);
-  const parsed = decodeJumon(jumon);
-  assert.equal(parsed.state.heroName, "てすと");
+  const result = engine.handleFukkatsu({ jumon: "ふるいけや かわずとびこむ いけのおと ばしゃ" });
+  assert.match(text(result), /4ひえた/);
+  assert.equal(engine.state.heroName, "4ひえた");
+  assert.equal(engine.state.level, 10);
+  assert.equal(engine.state.exp, 2898);
+  assert.equal(engine.state.gold, 15143);
+  assert.equal(engine.state.weapon, "アルコールスプレー");
+  assert.equal(engine.state.armor, "ファントムマスク");
+  assert.equal(engine.state.medicineCount, 3);
+});
 
-  const other = newEngine();
-  const before = cloneState(other.state);
-  const rejected = other.handleFukkatsu({ jumon });
+test("unknown jumon is rejected without changing state", () => {
+  const engine = newEngine();
+  const before = cloneState(engine.state);
+  const rejected = engine.handleFukkatsu({ jumon: "ゆうていみやおうきむこう" });
   assert.equal(rejected.isError, true);
   assert.match(text(rejected), /じゅもんが ちがいます/);
-  assert.deepEqual(other.state, before);
+  assert.deepEqual(engine.state, before);
 });
 
 test("boss battle leads to princess rescue and true ending", async () => {

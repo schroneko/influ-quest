@@ -150,7 +150,7 @@ export function createGameServer(options: GameServerOptions = {}): {
       {
         title: "こうどうをだいこうする",
         description:
-          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、clinic、weapon_shop、armor_shop、pharmacy、medicine、cast_spell、fukkatsu_no_jumon、answer_host、challenge_secret_boss を まとめてよべる",
+          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、weapon_shop、armor_shop、pharmacy、medicine、cast_spell、fukkatsu_no_jumon、answer_host、challenge_secret_boss を まとめてよべる",
         inputSchema: {
           action: z.enum(performableActionNames),
           name: z.string().min(1).max(128).optional(),
@@ -237,11 +237,6 @@ export function createGameServer(options: GameServerOptions = {}): {
         description: "ひとやすみ して HP を ぜんかいふくする（6ゴールド）",
       },
       withSafety(() => game().handleRest()),
-    ),
-    clinic: server.registerTool(
-      "clinic",
-      { title: "しんりょうじょ", description: "ぼうけんのしょに きろくする（セーブ）" },
-      withSafety(() => game().handleClinic()),
     ),
     weaponShop: server.registerTool(
       "weapon_shop",
@@ -352,7 +347,6 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.talk, !battle);
     setEnabled(tools.explore, !battle && state.location === "lair");
     setEnabled(tools.rest, !battle && state.location === "office");
-    setEnabled(tools.clinic, !battle && state.location === "office");
     setEnabled(tools.weaponShop, !battle && state.location === "office");
     setEnabled(tools.armorShop, !battle && state.location === "office");
     setEnabled(tools.pharmacy, !battle && state.location === "office");
@@ -391,17 +385,6 @@ export function createGameServer(options: GameServerOptions = {}): {
         },
       ],
     }),
-  );
-
-  server.registerResource(
-    "fukkatsu",
-    "influenza://fukkatsu-no-jumon",
-    {
-      title: "ふっかつのじゅもん",
-      description: "げんざいの じょうたいを あらわす じゅもん",
-      mimeType: "text/plain",
-    },
-    async (uri) => ({ contents: [{ uri: uri.href, text: game().currentJumon() }] }),
   );
 
   server.registerPrompt(

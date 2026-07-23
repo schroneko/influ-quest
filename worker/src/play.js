@@ -73,7 +73,7 @@ const GAME_TOOL = {
     "start_adventure: 現在の状態と次の行動を見る。最初にかならず呼ぶ。",
     "status: つよさを見る。name_hero: name でゆうしゃに名前をつける。",
     "talk: その場所の人と話す。move: destination へ移動する。explore: すみかの奥へ進む。",
-    "attack / run: 戦闘中のコマンド。rest: 休んで回復し、インフルエンザも治す。clinic: セーブ。",
+    "attack / run: 戦闘中のコマンド。rest: 休んで回復し、インフルエンザも治す。",
     "weapon_shop: ぶきを見る・item で買う。armor_shop: マスクなどのぼうぐを見る・item で買う。",
     "pharmacy: くすりやを見る・item で買う。かぜぐすり 30G と ワクチン 100G（かんせんを 3 かい ふせぐ）。",
     "medicine: かぜぐすりを飲んでインフルエンザを治す（戦闘中も可）。",
@@ -485,9 +485,6 @@ export function routeDirectCommand(state, rawMessage) {
   if (msg === "きゅうけいしつでやすむ") {
     return [{ action: "rest" }];
   }
-  if (msg === "きろくをのこしてじゅもんをきく") {
-    return [{ action: "clinic" }];
-  }
   if (/^ぶきや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
     return [{ action: "weapon_shop" }];
   }
@@ -571,7 +568,7 @@ export function routeFuzzyCommand(state, rawMessage) {
     return [{ action: "fukkatsu_no_jumon", jumon: "てあらいうがいわくちん" }];
   }
   if (spellForm.includes("ふるいけや")) {
-    return [{ action: "fukkatsu_no_jumon", jumon: "ふるいけやかわずとびこむみずのおとばしや" }];
+    return [{ action: "fukkatsu_no_jumon", jumon: "ふるいけやかわずとびこむいけのおとばしゃ" }];
   }
   if (spellForm.includes("ぱんでみっく")) {
     return [{ action: "cast_spell", spell: "ぱんでみっく" }];
