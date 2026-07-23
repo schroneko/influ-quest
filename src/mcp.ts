@@ -150,7 +150,7 @@ export function createGameServer(options: GameServerOptions = {}): {
       {
         title: "こうどうをだいこうする",
         description:
-          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、clinic、weapon_shop、armor_shop、pharmacy、medicine、cast_spell、fukkatsu_no_jumon、answer_host を まとめてよべる",
+          "dynamic tool list を こうしんしない クライアントむけの こうどうだいこう。name_hero、talk、move、explore、attack、run、rest、clinic、weapon_shop、armor_shop、pharmacy、medicine、cast_spell、fukkatsu_no_jumon、answer_host、challenge_secret_boss を まとめてよべる",
         inputSchema: {
           action: z.enum(performableActionNames),
           name: z.string().min(1).max(128).optional(),
