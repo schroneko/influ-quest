@@ -168,7 +168,7 @@ function buildSuggestions(state, sceneText) {
   if (state.heroName === heroPlaceholderName && !state.cleared) {
     return [];
   }
-  if (sceneText && !state.inBattle && !state.hostAsking) {
+  if (sceneText && !state.inBattle && !state.hostAsking && state.location === "office") {
     if (/かいますか|買いますか|かうか？|こうにゅうしますか/.test(sceneText)) {
       return ["はい", "いいえ"];
     }
@@ -390,6 +390,7 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
     gameOver: false,
     cleared: state.cleared === true,
     image: pickImage(state, reply),
+    shareUrl: (reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/) || [null])[0],
     hud: {
       name: state.heroName,
       level: state.level,
@@ -1721,7 +1722,8 @@ const PLAY_PAGE = String.raw`<!doctype html>
   .sharerow {
     align-self: center;
   }
-  .sharerow a {
+  .sharerow a,
+  .share-slot a {
     display: inline-block;
     font-size: 14px;
     color: #05060a;
@@ -1730,6 +1732,13 @@ const PLAY_PAGE = String.raw`<!doctype html>
     padding: 8px 16px;
     text-decoration: none;
     white-space: nowrap;
+  }
+  .share-slot {
+    text-align: center;
+    padding: 8px 0 0;
+  }
+  .share-slot[hidden] {
+    display: none;
   }
   .commands {
     display: flex;
@@ -1983,6 +1992,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
     </div>
   </div>
   <div class="dqwin logwrap" data-title="― メッセージ ―"><div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions text"></div></div>
+  <div class="share-slot" id="share-slot" hidden></div>
   <div class="dqwin commands" id="hints" data-title="― コマンド ―" aria-live="polite" aria-atomic="true"></div>
   <form class="dqwin composer" id="composer" data-title="― にゅうりょく ―" aria-labelledby="input-label" hidden>
     <label class="sr-only" id="input-label" for="input">コマンドを いれる</label>
@@ -2185,6 +2195,21 @@ const PLAY_PAGE = String.raw`<!doctype html>
     div.appendChild(link);
     log.appendChild(div);
     scrollDown();
+  };
+  const shareSlot = document.getElementById("share-slot");
+  const renderShareSlot = (url) => {
+    shareSlot.replaceChildren();
+    if (!url) {
+      shareSlot.hidden = true;
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "▶ Xで じまんする";
+    shareSlot.appendChild(link);
+    shareSlot.hidden = false;
   };
   const typewrite = (text) =>
     new Promise((resolve) => {
@@ -2419,6 +2444,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
         updateScene(data.image);
         updateEnemy(data.hud && data.hud.enemy);
         const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/);
+        renderShareSlot(data.shareUrl || (shareMatch ? shareMatch[0] : null));
         const shownReply = shareMatch
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;

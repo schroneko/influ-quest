@@ -882,10 +882,6 @@ const PAGE = String.raw`<!doctype html>
   .cell-status.status-boss {
     color: var(--rose);
   }
-  .cell-updated {
-    color: var(--dim);
-    white-space: nowrap;
-  }
   .state-empty td {
     color: var(--dim);
   }
@@ -967,9 +963,6 @@ const PAGE = String.raw`<!doctype html>
     .cell-status::before {
       content: attr(data-label);
     }
-    .cell-updated {
-      white-space: normal;
-    }
   }
 </style>
 </head>
@@ -1012,7 +1005,6 @@ const PAGE = String.raw`<!doctype html>
             <th scope="col">ばしょ</th>
             <th scope="col">じょうたい</th>
             <th scope="col">タイム</th>
-            <th scope="col">こうしん</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -1042,7 +1034,7 @@ const PAGE = String.raw`<!doctype html>
     stale: "しばらくすると じどうで さいちょうせん する",
     error: "ひらいたままに しておけば じどうで さいせつぞく する",
   };
-  const rowLabels = ["じゅんい", "なまえ", "レベル", "HP", "ゴールド", "ばしょ", "じょうたい", "タイム", "こうしん"];
+  const rowLabels = ["じゅんい", "なまえ", "レベル", "HP", "ゴールド", "ばしょ", "じょうたい", "タイム"];
   const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
     month: "2-digit",
     day: "2-digit",
@@ -1096,7 +1088,7 @@ const PAGE = String.raw`<!doctype html>
       const tr = document.createElement("tr");
       tr.className = "state-empty";
       const td = document.createElement("td");
-      td.colSpan = 9;
+      td.colSpan = 8;
       td.setAttribute("data-label", "おしらせ");
       td.textContent = "＊「まだ だれも ぼうけんに でていない」";
       tr.appendChild(td);
@@ -1120,7 +1112,6 @@ const PAGE = String.raw`<!doctype html>
         { label: rowLabels[5], text: player.location },
         { label: rowLabels[6], text: status.label, className: "cell-status " + status.cls },
         { label: rowLabels[7], text: formatClearTime(player.clearMs) },
-        { label: rowLabels[8], text: formatTimestamp(player.updatedAt), className: "cell-updated" },
       ];
       for (const cell of values) {
         const td = document.createElement("td");

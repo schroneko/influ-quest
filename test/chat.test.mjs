@@ -564,6 +564,21 @@ test("free input opens after the first minister talk", async () => {
   assert.equal(movedBody.allowInput, false);
 });
 
+test("rta clear responds with a share url and post-ending suggestions", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ heroName: "てすと", hostGreeted: true }),
+  });
+  const response = await handleChat(createChatRequest("爆速RTA"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.shareUrl, /^https:\/\/x\.com\/intent\/post\?text=/);
+  assert.ok(!body.suggestions.includes("みせを でる"));
+  assert.ok(body.suggestions.includes("ちょまどひめと はなす"));
+});
+
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";
