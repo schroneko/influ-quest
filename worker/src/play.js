@@ -261,11 +261,8 @@ function buildSuggestions(state, sceneText) {
     if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
       clearedOptions.push("うでだめしを する");
     }
-    clearedOptions.push(
-      state.location === "venue" ? "まもりのまちへ いく" : "おおてまちじょうへ もどる",
-    );
     clearedOptions.push("はじめから やりなおす");
-    return clearedOptions.slice(0, 4);
+    return clearedOptions.slice(0, 3);
   }
   if (state.hostAsking) {
     add("はい");
@@ -280,7 +277,7 @@ function buildSuggestions(state, sceneText) {
     if (!state.hostGreeted) {
       return ["だいじんと はなす"];
     } else if (state.princessCarried) {
-      add("ちょまどひめを だいじんに とどける（エンディングへ）");
+      add("ちょまどひめを だいじんに とどける");
       add("まもりのまちへ いく");
     } else {
       add("まもりのまちへ いく");
@@ -350,7 +347,7 @@ function pickImage(state, reply) {
     return `${base}/enemies/influenza-lord.webp`;
   }
   if (state.princessCarried) {
-    return `${base}/characters/hero-carrying-princess.webp`;
+    return `${base}/characters/princess.webp`;
   }
   if (state.location === "venue") {
     return `${base}/locations/event-venue.webp`;
@@ -360,6 +357,9 @@ function pickImage(state, reply) {
   }
   if (reply.includes("ふるびた せきひ")) {
     return `${base}/locations/stone-tablet.webp`;
+  }
+  if (reply.includes("たからばこを あけた！")) {
+    return `${base}/locations/treasure-room.webp`;
   }
   if (state.lairDepth >= 5) {
     return state.bossDefeated
@@ -385,12 +385,14 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
     reply,
     status: engine.statusText(),
     suggestions: buildSuggestions(state, reply),
-    allowInput: /せきひ|たびの したくに 200ゴールド/.test(reply),
+    allowInput: state.inBattle === true || /せきひ|たびの したくに 200ゴールド/.test(reply),
     needsName: state.heroName === heroPlaceholderName && !state.cleared,
     gameOver: false,
     cleared: state.cleared === true,
     image: pickImage(state, reply),
-    shareUrl: (reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/) || [null])[0],
+    shareUrl:
+      engine.shareUrlForState() ||
+      (reply.match(/https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/) || [null])[0],
     hud: {
       name: state.heroName,
       level: state.level,
@@ -1433,6 +1435,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
   }
   * {
     box-sizing: border-box;
+    touch-action: manipulation;
   }
   html {
     background: #000;
@@ -1609,8 +1612,8 @@ const PLAY_PAGE = String.raw`<!doctype html>
   }
   .sprite {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 55px;
+    height: 55px;
     flex: none;
     transform: scale(0.72);
     transform-origin: center;
@@ -1719,21 +1722,24 @@ const PLAY_PAGE = String.raw`<!doctype html>
       opacity: 0;
     }
   }
-  .share-slot a {
+  .brag-slot button {
     display: inline-block;
+    font: inherit;
     font-size: 14px;
     color: #05060a;
     background: var(--gold);
+    border: none;
     border-radius: 8px;
     padding: 8px 16px;
-    text-decoration: none;
+    cursor: pointer;
     white-space: nowrap;
   }
-  .share-slot {
+  .brag-slot {
+    flex: none;
     text-align: center;
     padding: 8px 0 0;
   }
-  .share-slot[hidden] {
+  .brag-slot[hidden] {
     display: none;
   }
   .commands {
@@ -1988,7 +1994,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
     </div>
   </div>
   <div class="dqwin logwrap" data-title="― メッセージ ―"><div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions text"></div></div>
-  <div class="share-slot" id="share-slot" hidden></div>
+  <div class="brag-slot" id="brag-slot" hidden></div>
   <div class="dqwin commands" id="hints" data-title="― コマンド ―" aria-live="polite" aria-atomic="true"></div>
   <form class="dqwin composer" id="composer" data-title="― にゅうりょく ―" aria-labelledby="input-label" hidden>
     <label class="sr-only" id="input-label" for="input">コマンドを いれる</label>
@@ -2041,7 +2047,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       localStorage.setItem(sessionKey, sessionId);
     } catch {}
   }
-  const PAGE_BUILD = "b20260724a";
+  const PAGE_BUILD = "b20260724m";
   const clientLog = (payload) => {
     try {
       void fetch("/api/client-log", {
@@ -2198,20 +2204,66 @@ const PLAY_PAGE = String.raw`<!doctype html>
     inner.addEventListener("animationend", close);
     document.body.appendChild(overlayEl);
   };
-  const shareSlot = document.getElementById("share-slot");
+  const shareSlot = document.getElementById("brag-slot");
   const renderShareSlot = (url) => {
     shareSlot.replaceChildren();
     if (!url) {
       shareSlot.hidden = true;
       return;
     }
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "▶ Xで じまんする";
-    shareSlot.appendChild(link);
+    const bragButton = document.createElement("button");
+    bragButton.type = "button";
+    bragButton.textContent = "▶ Xで じまんする";
+    bragButton.addEventListener("click", () => {
+      window.open(url, "_blank", "noopener");
+    });
+    shareSlot.appendChild(bragButton);
     shareSlot.hidden = false;
+  };
+  let audioCtx = null;
+  let audioUnlocked = false;
+  const silentLoop = new Audio(
+    "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  );
+  silentLoop.loop = true;
+  const ensureAudio = () => {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) {
+      return;
+    }
+    if (!audioCtx) {
+      audioCtx = new Ctx();
+    }
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    if (!audioUnlocked) {
+      const buffer = audioCtx.createBuffer(1, 1, 22050);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
+      silentLoop.play().catch(() => {});
+      audioUnlocked = true;
+    }
+  };
+  for (const eventName of ["pointerdown", "touchend", "click", "keydown"]) {
+    document.addEventListener(eventName, ensureAudio, { passive: true });
+  }
+  const textBlip = () => {
+    if (!audioCtx || audioCtx.state !== "running") {
+      return;
+    }
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.04);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.04);
   };
   const typewrite = (text) =>
     new Promise((resolve) => {
@@ -2234,8 +2286,12 @@ const PLAY_PAGE = String.raw`<!doctype html>
       }
       let index = 0;
       const step = () => {
+        const prev = index;
         index += 2;
         body.textContent = chars.slice(0, index).join("");
+        if (/\S/.test(chars.slice(prev, index).join(""))) {
+          textBlip();
+        }
         scrollDownInstant();
         if (index < chars.length) {
           window.setTimeout(step, 32);
@@ -2278,6 +2334,12 @@ const PLAY_PAGE = String.raw`<!doctype html>
       sceneImg.src = image;
     }
   };
+  sceneImg.addEventListener("error", () => {
+    const fallback = "/assets/quest/locations/virus-lair-entrance.webp";
+    if (sceneImg.getAttribute("src") !== fallback) {
+      sceneImg.src = fallback;
+    }
+  });
   const hud = document.getElementById("hud");
   const updateHud = (data) => {
     if (!data) return;
@@ -2445,16 +2507,25 @@ const PLAY_PAGE = String.raw`<!doctype html>
         updateHud(data.hud);
         updateScene(data.image);
         updateEnemy(data.hud && data.hud.enemy);
-        const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/post\?text=\S+/);
+        const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/);
         renderShareSlot(data.shareUrl || (shareMatch ? shareMatch[0] : null));
+        const slotRect = shareSlot.getBoundingClientRect();
+        const slotLink = shareSlot.querySelector("button");
+        const linkRect = slotLink ? slotLink.getBoundingClientRect() : null;
         clientLog({
           event: "reply",
           cleared: data.cleared === true,
           shareUrl: Boolean(data.shareUrl || shareMatch),
           slotHidden: shareSlot.hidden,
+          audio: audioCtx ? audioCtx.state : "none",
+          slotRect: [Math.round(slotRect.top), Math.round(slotRect.width), Math.round(slotRect.height)],
+          linkRect: linkRect ? [Math.round(linkRect.width), Math.round(linkRect.height)] : null,
+          linkDisplay: slotLink ? window.getComputedStyle(slotLink).display : "no-link",
+          slotDisplay: window.getComputedStyle(shareSlot).display,
+          viewH: window.innerHeight,
         });
         const shownReply = shareMatch
-          ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
+          ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/, "").trimEnd()
           : data.reply;
         try {
           await queueTypewrite(shownReply);
@@ -2570,24 +2641,48 @@ const PLAY_PAGE = String.raw`<!doctype html>
   });
 
   addMessage("sys", "＊ インフルだいまおうに さらわれた ちょまどひめを すくいだそう ＊");
-  let savedName = "";
-  try {
-    savedName = localStorage.getItem(nameKey) || "";
-  } catch {}
-  if (savedName) {
-    void queueTypewrite(
-      "おかえり " +
-        savedName +
-        "。なまえは のこっている。サーバーの ぼうけんが のこっていれば つづきから あそべるぞ。",
-    ).then(() => {
-      renderSuggestions(["つづきを あそぶ", "はじめから やりなおす"], { allowInput: false });
-    });
-  } else {
-    renderName();
-    void queueTypewrite(${JSON.stringify(PROLOGUE_TEXT)}).then(() => {
-      renderSuggestions(["なまえを つける"], { allowInput: false });
-    });
-  }
+  const bootGame = () => {
+    let savedName = "";
+    try {
+      savedName = localStorage.getItem(nameKey) || "";
+    } catch {}
+    if (savedName) {
+      void queueTypewrite(
+        "おかえり " +
+          savedName +
+          "。なまえは のこっている。サーバーの ぼうけんが のこっていれば つづきから あそべるぞ。",
+      ).then(() => {
+        renderSuggestions(["つづきを あそぶ", "はじめから やりなおす"], { allowInput: false });
+      });
+    } else {
+      renderName();
+      void queueTypewrite(${JSON.stringify(PROLOGUE_TEXT)}).then(() => {
+        renderSuggestions(["なまえを つける"], { allowInput: false });
+      });
+    }
+  };
+  const startGate = document.createElement("div");
+  startGate.className = "msg gm";
+  const gateBody = document.createElement("span");
+  gateBody.textContent = "タップして ぼうけんを はじめる";
+  const gateCursor = document.createElement("span");
+  gateCursor.className = "cursor";
+  gateCursor.textContent = " ▼";
+  startGate.appendChild(gateBody);
+  startGate.appendChild(gateCursor);
+  log.appendChild(startGate);
+  let gateOpened = false;
+  const openGate = () => {
+    if (gateOpened) {
+      return;
+    }
+    gateOpened = true;
+    ensureAudio();
+    startGate.remove();
+    bootGame();
+  };
+  document.addEventListener("pointerdown", openGate, { once: true });
+  document.addEventListener("keydown", openGate, { once: true });
 </script>
 </body>
 </html>`;
