@@ -338,7 +338,7 @@ const ENEMY_IMAGE_MAP = {
   "へんいかぶの おやだま": "variant-boss",
   インフルだいまおう: "influenza-lord",
   くしゃみこぞう: "sneeze-kid",
-  なつかぜだいまおう: "influenza-lord-mutated",
+  なつかぜだいまおう: "natsukaze-lord",
 };
 
 function pickImage(state, reply) {
