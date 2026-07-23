@@ -382,7 +382,7 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
     reply,
     status: engine.statusText(),
     suggestions: buildSuggestions(state, reply),
-    allowInput: /せきひ/.test(reply),
+    allowInput: /せきひ|たびの したくに 200ゴールド/.test(reply),
     needsName: state.heroName === heroPlaceholderName && !state.cleared,
     gameOver: false,
     cleared: state.cleared === true,

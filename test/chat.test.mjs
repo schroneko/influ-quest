@@ -546,6 +546,24 @@ test("pharmacy scene offers the bed rest command", async () => {
   assert.ok(body.suggestions.includes("おくの ベッドで やすむ（6G）"));
 });
 
+test("free input opens after the first minister talk", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ heroName: "てすと" }),
+  });
+  const response = await handleChat(createChatRequest("だいじんと はなす"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.reply, /たびの したくに 200ゴールド/);
+  assert.equal(body.allowInput, true);
+
+  const moved = await handleChat(createChatRequest("まもりのまちへ いく"), createChatEnv(), undefined, store);
+  const movedBody = await moved.json();
+  assert.equal(movedBody.allowInput, false);
+});
+
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";
