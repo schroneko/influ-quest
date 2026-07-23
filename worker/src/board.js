@@ -52,6 +52,7 @@ const RECORD_FIELD_NAMES = new Set([
   "cheatCleared",
   "princessCarried",
   "dragonDefeated",
+  "virusKing",
   "infected",
   "clearMs",
   "updatedAt",
@@ -186,6 +187,9 @@ const makePlayerKey = (eventId, id) => `${makeEventPrefix(eventId)}${id}`;
 
 const validateRecordShape = (candidate, { exactName = false } = {}) => {
   if (!isPlainObject(candidate)) return null;
+  if (!("virusKing" in candidate)) {
+    candidate = { ...candidate, virusKing: false };
+  }
   if (!hasExactFields(candidate, RECORD_FIELD_NAMES)) return null;
   const name = sanitizeName(candidate.name);
   if (name === null) return null;
@@ -201,6 +205,7 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
   if (typeof candidate.cheatCleared !== "boolean") return null;
   if (typeof candidate.princessCarried !== "boolean") return null;
   if (typeof candidate.dragonDefeated !== "boolean") return null;
+  if (typeof candidate.virusKing !== "boolean") return null;
   if (typeof candidate.infected !== "boolean") return null;
   if (!isIntegerInRange(candidate.clearMs, 0, Number.MAX_SAFE_INTEGER)) return null;
   if (!isIntegerInRange(candidate.updatedAt, 0, Number.MAX_SAFE_INTEGER)) return null;
@@ -216,6 +221,7 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
     cheatCleared: candidate.cheatCleared,
     princessCarried: candidate.princessCarried,
     dragonDefeated: candidate.dragonDefeated,
+    virusKing: candidate.virusKing,
     infected: candidate.infected,
     clearMs: candidate.clearMs,
     updatedAt: candidate.updatedAt,
@@ -225,6 +231,9 @@ const validateRecordShape = (candidate, { exactName = false } = {}) => {
 const validateIncomingBody = (candidate, now) => {
   if (!isPlainObject(candidate)) {
     return { error: apiError(400, "invalid_json", "JSON body must be an object") };
+  }
+  if (!("virusKing" in candidate)) {
+    candidate = { ...candidate, virusKing: false };
   }
   if (!hasExactFields(candidate, INCOMING_FIELD_NAMES)) {
     return { error: apiError(400, "invalid_shape", "JSON body has missing or unknown fields") };
@@ -1055,10 +1064,11 @@ const PAGE = String.raw`<!doctype html>
     return timeFormatter.format(new Date(value));
   };
   const statusOf = (player) => {
-    if (player.cheatCleared) return { label: "チートクリア", cls: "status-cheat" };
+    if (player.cheatCleared) return { label: "せかいめつぼう", cls: "status-cheat" };
     if (player.cleared) return { label: "クリア", cls: "status-clear" };
     if (player.princessCarried) return { label: "ちょまどひめを かついでいる", cls: "status-princess" };
     if (player.dragonDefeated) return { label: "だいまおうを たおした", cls: "status-boss" };
+    if (player.virusKing) return { label: "だいまおう", cls: "status-cheat" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
   const formatClearTime = (clearMs) => {

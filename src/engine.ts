@@ -78,6 +78,7 @@ export type Snapshot = {
   cheatCleared: boolean;
   princessCarried: boolean;
   dragonDefeated: boolean;
+  virusKing: boolean;
   infected: boolean;
   clearMs: number;
 };
@@ -443,6 +444,7 @@ export function createEngine(initial: { state: GameState; gameLog: string[] }, i
       cheatCleared: state.cheatCleared,
       princessCarried: state.princessCarried,
       dragonDefeated: state.bossDefeated,
+      virusKing: state.virusKingEnded,
       infected: state.infected,
       clearMs: state.clearMs,
     };
@@ -651,9 +653,14 @@ ${artHtml}
       bonus = move.bonus;
       feverish = move.feverish === true;
     }
+    const wasInfected = state.infected;
     const damage = Math.max(enemy.attack + bonus + randInt(0, 2) - state.armorDefense, 1);
     state.hp -= damage;
     let line = `${attackIntro} ゆうしゃは ${damage} の ダメージを うけた！（のこり HP ${Math.max(state.hp, 0)}/${state.maxHp}）`;
+    if (wasInfected && state.hp > 0) {
+      state.hp -= 5;
+      line += `\nねつが からだを むしばむ……（HP -5 で のこり ${Math.max(state.hp, 0)}/${state.maxHp}）`;
+    }
     if (
       feverish &&
       state.hp > 0 &&
@@ -852,7 +859,7 @@ ${artHtml}
         "インフルエンザじゃ なかったんだけど、なつかぜを こじらせて、ねつで うなされて いて……",
         "くるしくて、つい だいまおうの すがたで あばれちゃった。」",
         "",
-        "ぬこぬこひめ「でも おにいちゃんが たおして くれた おかげで、ねつが すっと ひいたの。",
+        "ぬこぬこひめ「でも ゆうしゃさまが たおして くれた おかげで、ねつが すっと ひいたの。",
         "ちょまどひめも、まちの みんなも、あたしも……ぜんいん たすかった！」",
         "",
         SYRINGE_ART,
@@ -863,7 +870,7 @@ ${artHtml}
         "なつかぜも インフルも きえさり、せかいに あたたかい なつの かぜが もどってきた。",
         "",
         "ぬこぬこひめ「てあらい うがい すいみん、そして むりを しないこと。",
-        "それが いちばんの まほうだよ。おだいじに ね、おにいちゃん。」",
+        "それが いちばんの まほうだよ。おだいじに ね、ゆうしゃさま。」",
         "",
         "Xで せかいに じまんする:",
         SHARE_URL,
@@ -881,7 +888,7 @@ ${artHtml}
     }
     if (state.natsuKazeDefeated) {
       return okText(
-        "ぬこぬこひめ「なつかぜは もう すっかり なおったよ。おにいちゃんの おかげ。ありがとう！」",
+        "ぬこぬこひめ「なつかぜは もう すっかり なおったよ。ゆうしゃさまの おかげ。ありがとう！」",
       );
     }
     if (state.princessTalkCount < 3) {
@@ -918,6 +925,7 @@ ${artHtml}
 
   function badEnd(): string {
     resetInMemoryRun(true);
+    state.virusKingEnded = true;
     return [
       "あなたは だいまおうの てを とった。",
       "",
@@ -1425,8 +1433,8 @@ ${artHtml}
     }
     let drain = "";
     if (state.infected) {
-      state.hp = Math.max(state.hp - 2, 1);
-      drain = `ねつで ふらふら する……（HP -2 で のこり ${state.hp}）\n`;
+      state.hp = Math.max(state.hp - 5, 1);
+      drain = `ねつで ふらふら する……（HP -5 で のこり ${state.hp}）\n`;
     }
     const spawnFloorEnemy = (depth: number, index: number): { enemy: Enemy; intro: string } => {
       const pair = FLOOR_ENEMY_PAIRS[depth] ?? FLOOR_ENEMY_PAIRS[4];
@@ -1469,6 +1477,28 @@ ${artHtml}
       state.tabletFound = true;
       return okText(drain + TABLET_TEXT);
     }
+    if (state.lairDepth === 4 && state.floorEncounters === 2) {
+      state.floorEncounters = 3;
+      state.hp = state.maxHp;
+      const cured = state.infected;
+      state.infected = false;
+      const fountainLines = [
+        "すみかの さいしんぶで きよらかな いずみを みつけた。",
+        `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
+        ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
+      ];
+      if (!state.tabletFound) {
+        state.tabletFound = true;
+        fountainLines.push(
+          "",
+          "いずみの ほとりに、ふるびた せきひが たっている……。",
+          "",
+          TABLET_TEXT,
+        );
+      }
+      fountainLines.push("（この さきに インフルだいまおうが まっている……じゅんびは いいか）");
+      return okText(maybeTelepathy(fountainLines.join("\n")));
+    }
     state.lairDepth += 1;
     state.floorEncounters = 0;
     if (state.lairDepth >= 5) {
@@ -1485,27 +1515,6 @@ ${artHtml}
           "さいかそうに たどりついた！\nインフルだいまおうが ちょまどひめを とらえている！\n\n" +
           startBattle(flulord),
       );
-    }
-    if (state.lairDepth === 4) {
-      state.hp = state.maxHp;
-      const cured = state.infected;
-      state.infected = false;
-      const fountainLines = [
-        "すみかの おくで きよらかな いずみを みつけた。",
-        `HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`,
-        ...(cured ? ["いずみの ちからで インフルエンザも なおった！"] : []),
-      ];
-      if (!state.tabletFound) {
-        state.tabletFound = true;
-        fountainLines.push(
-          "",
-          "いずみの ほとりに、ふるびた せきひが たっている……。",
-          "",
-          TABLET_TEXT,
-        );
-      }
-      fountainLines.push("（だいまおうの けはいが ちかい……このかいを さぐってから すすもう）");
-      return okText(maybeTelepathy(fountainLines.join("\n")));
     }
     state.floorEncounters = 1;
     const spawn = spawnFloorEnemy(state.lairDepth, 0);

@@ -84,6 +84,9 @@ test("boss battle leads to princess rescue and true ending", async () => {
   engine.state.hp = 62;
   engine.state.weapon = "でんせつのワクチンソード";
   engine.state.weaponAttack = 24;
+  engine.state.armor = "かんせんたいさくスーツ";
+  engine.state.armorDefense = 7;
+  engine.state.immunityCount = 3;
   engine.handleMove({ destination: "ウイルスのすみか" });
   engine.state.lairDepth = 5;
   engine.handleExplore();
@@ -129,6 +132,8 @@ test("accepting the demon lord offer causes the virus king bad end", async () =>
   assert.equal(engine.state.cleared, false);
   assert.equal(engine.state.heroName, "てすと");
   assert.equal(engine.state.gold, 0);
+  assert.equal(engine.state.virusKingEnded, true);
+  assert.equal(engine.snapshot().virusKing, true);
 });
 
 test("game over wakes the hero at the clinic with half gold", () => {
@@ -159,6 +164,20 @@ test("enemy hits can infect the hero and weaken attacks", () => {
   assert.match(text(result), /インフルエンザに かかってしまった/);
   assert.equal(engine.state.infected, true);
   assert.match(engine.statusText(), /はんげん/);
+});
+
+test("influenza drains five hp every battle turn", () => {
+  const engine = newEngine();
+  engine.state.armor = "かんせんたいさくスーツ";
+  engine.state.armorDefense = 7;
+  engine.state.infected = true;
+  engine.state.location = "lair";
+  engine.state.inBattle = true;
+  engine.state.enemy = { name: "せきしぶき", hp: 500, attack: 5, exp: 8, gold: 18, boss: false, rounds: 0 };
+  const before = engine.state.hp;
+  const result = engine.handleAttack();
+  assert.match(text(result), /ねつが からだを むしばむ……（HP -5/);
+  assert.equal(before - engine.state.hp, 6);
 });
 
 test("armor reduces incoming damage", () => {
@@ -260,6 +279,9 @@ test("secret boss route unlocks after three princess talks and grants the true e
   engine.state.hp = 62;
   engine.state.weapon = "でんせつのワクチンソード";
   engine.state.weaponAttack = 30;
+  engine.state.armor = "かんせんたいさくスーツ";
+  engine.state.armorDefense = 7;
+  engine.state.immunityCount = 3;
   engine.state.location = "venue";
 
   const earlyChallenge = engine.handleChallengeSecretBoss();
@@ -534,19 +556,23 @@ test("oyadama blocks depth three and opens the path when beaten", () => {
   assert.equal(engine.state.miniBossDefeated, true);
 });
 
-test("depth four fountain restores hp before the boss", () => {
+test("the fountain appears right before the boss after clearing floor four", () => {
   const engine = newEngine();
   engine.state.exp = 8;
   engine.state.location = "lair";
-  engine.state.lairDepth = 3;
+  engine.state.lairDepth = 4;
   engine.state.floorEncounters = 2;
   engine.state.miniBossDefeated = true;
   engine.state.tabletFound = true;
   engine.state.hp = 5;
   const result = engine.handleExplore();
   assert.match(text(result), /いずみ/);
+  assert.match(text(result), /インフルだいまおうが まっている/);
   assert.equal(engine.state.hp, engine.state.maxHp);
   assert.equal(engine.state.lairDepth, 4);
+  const next = engine.handleExplore();
+  assert.match(text(next), /さいかそう/);
+  assert.equal(engine.state.enemy.boss, true);
 });
 
 test("tablet appears randomly at depth three or is guaranteed at the fountain", () => {
@@ -564,7 +590,7 @@ test("tablet appears randomly at depth three or is guaranteed at the fountain", 
   const missed = newEngine({ random: () => 0.9 });
   missed.state.exp = 8;
   missed.state.location = "lair";
-  missed.state.lairDepth = 3;
+  missed.state.lairDepth = 4;
   missed.state.floorEncounters = 2;
   missed.state.miniBossDefeated = true;
   const fountain = missed.handleExplore();
