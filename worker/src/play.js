@@ -1171,7 +1171,9 @@ export async function handleChat(
     }
 
     const directRoute =
-      engine.state.heroName !== heroPlaceholderName ? routeDirectCommand(engine.state, message) : null;
+      engine.state.heroName !== heroPlaceholderName
+        ? routeDirectCommand(engine.state, message)
+        : null;
     const fuzzyRoute =
       !directRoute && engine.state.heroName !== heroPlaceholderName
         ? routeFuzzyCommand(engine.state, message)
@@ -1296,7 +1298,11 @@ export async function handleChat(
     } catch (error) {
       console.error("chat model failure:", error instanceof Error ? error.message : String(error));
       return json(
-        { ok: false, error: "model_error", message: "つうしんが みだれた。もういちど ためすのだ。" },
+        {
+          ok: false,
+          error: "model_error",
+          message: "つうしんが みだれた。もういちど ためすのだ。",
+        },
         502,
       );
     }
@@ -2006,24 +2012,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
       localStorage.setItem(sessionKey, sessionId);
     } catch {}
   }
-  const PAGE_BUILD = "b20260724m";
-  const clientLog = (payload) => {
-    try {
-      void fetch("/api/client-log", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ build: PAGE_BUILD, session: sessionId.slice(0, 8), ...payload }),
-        keepalive: true,
-      });
-    } catch {}
-  };
-  window.addEventListener("error", (event) => {
-    clientLog({ event: "jserror", message: String(event.message || "").slice(0, 200) });
-  });
-  window.addEventListener("unhandledrejection", (event) => {
-    clientLog({ event: "unhandledrejection", message: String(event.reason || "").slice(0, 200) });
-  });
-  clientLog({ event: "load" });
   const scrollDown = () => {
     log.scrollTop = log.scrollHeight;
   };
@@ -2468,21 +2456,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
         updateEnemy(data.hud && data.hud.enemy);
         const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/);
         renderShareSlot(data.shareUrl || (shareMatch ? shareMatch[0] : null));
-        const slotRect = shareSlot.getBoundingClientRect();
-        const slotLink = shareSlot.querySelector("button");
-        const linkRect = slotLink ? slotLink.getBoundingClientRect() : null;
-        clientLog({
-          event: "reply",
-          cleared: data.cleared === true,
-          shareUrl: Boolean(data.shareUrl || shareMatch),
-          slotHidden: shareSlot.hidden,
-          audio: audioCtx ? audioCtx.state : "none",
-          slotRect: [Math.round(slotRect.top), Math.round(slotRect.width), Math.round(slotRect.height)],
-          linkRect: linkRect ? [Math.round(linkRect.width), Math.round(linkRect.height)] : null,
-          linkDisplay: slotLink ? window.getComputedStyle(slotLink).display : "no-link",
-          slotDisplay: window.getComputedStyle(shareSlot).display,
-          viewH: window.innerHeight,
-        });
         const shownReply = shareMatch
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/, "").trimEnd()
           : data.reply;
