@@ -1726,7 +1726,11 @@ ${logHtml}
         lines.push(`・${name}　${shopItem.price}ゴールド（こうげき力 ${shopItem.attack}）${owned}`);
         lines.push(`　${shopItem.description}`);
       }
-      lines.push("", `もちがね: ${state.gold}ゴールド`);
+      lines.push(
+        "",
+        `もちがね: ${state.gold}ゴールド`,
+        "（いま そうびちゅうの ものより よわい ぶきは かえない）",
+      );
       return okText(lines.join("\n"));
     }
     if (!hasOwn(WEAPON_SHOP, item)) {
@@ -1779,7 +1783,11 @@ ${logHtml}
         );
         lines.push(`　${shopItem.description}`);
       }
-      lines.push("", `もちがね: ${state.gold}ゴールド`);
+      lines.push(
+        "",
+        `もちがね: ${state.gold}ゴールド`,
+        "（いま そうびちゅうの ものより よわい ぼうぐは かえない）",
+      );
       return okText(lines.join("\n"));
     }
     if (!hasOwn(ARMOR_SHOP, item)) {
