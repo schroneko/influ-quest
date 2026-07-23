@@ -158,17 +158,17 @@ const flulord: Enemy = {
   name: "インフルだいまおう",
   hp: 100,
   maxHp: 100,
-  attack: 11,
+  attack: 6,
   exp: 100,
   gold: 300,
   boss: true,
   rounds: 0,
 };
 const natsukaze: Enemy = {
-  name: "なつかぜだいまおう",
+  name: "ナツカゼだいまおう",
   hp: 200,
   maxHp: 200,
-  attack: 13,
+  attack: 2,
   exp: 200,
   gold: 500,
   boss: true,
@@ -250,7 +250,7 @@ export const SHARE_URL_RTA = shareUrlFor(
   "爆速RTAでインフルだいまおうを 0.2 びょうで撃破！はやすぎる！ #AIDevDay",
 );
 export const SHARE_URL_SECRET = shareUrlFor(
-  "裏ボスなつかぜだいまおうも撃破して、真エンディングに到達した！ #AIDevDay",
+  "裏ボスナツカゼだいまおうも撃破して、真エンディングに到達した！ #AIDevDay",
 );
 export const SHARE_URL_BADEND = shareUrlFor(
   "だいまおうの取引に応じたら、新たなインフルだいまおうになってしまった…… #AIDevDay",
@@ -642,16 +642,16 @@ ${artHtml}
 
   const BOSS_MOVES: Array<{ line: string; bonus: number; feverish?: boolean }> = [
     { line: "インフルだいまおうの こうげき！", bonus: 0 },
-    { line: "インフルだいまおうは ウイルスブレスを はきだした！", bonus: 4 },
-    { line: "インフルだいまおうは くしゃみの あらしを まきおこした！", bonus: 2 },
-    { line: "インフルだいまおうは 40どの ねつを あびせて きた！", bonus: 1, feverish: true },
+    { line: "インフルだいまおうは ウイルスブレスを はきだした！", bonus: 5 },
+    { line: "インフルだいまおうは くしゃみの あらしを まきおこした！", bonus: 3 },
+    { line: "インフルだいまおうは 40どの ねつを あびせて きた！", bonus: 2 },
   ];
 
   const NATSUKAZE_MOVES: Array<{ line: string; bonus: number; feverish?: boolean }> = [
-    { line: "なつかぜだいまおうの こうげき！", bonus: 2 },
-    { line: "なつかぜだいまおうは ねっぷうの ブレスを はきだした！", bonus: 5 },
-    { line: "なつかぜだいまおうは れいぼうびょうの さむけを あびせた！", bonus: 3 },
-    { line: "なつかぜだいまおうは あせだくの こうねつを はなった！", bonus: 2, feverish: true },
+    { line: "ナツカゼだいまおうの こうげき！", bonus: 2 },
+    { line: "ナツカゼだいまおうは ねっぷうの ブレスを はきだした！", bonus: 5 },
+    { line: "ナツカゼだいまおうは れいぼうびょうの さむけを あびせた！", bonus: 3 },
+    { line: "ナツカゼだいまおうは あせだくの こうねつを はなった！", bonus: 2, feverish: true },
   ];
 
   function enemyAttackLine(): string {
@@ -663,14 +663,18 @@ ${artHtml}
     let bonus = 0;
     let feverish = false;
     if (enemy.boss) {
-      const moves = enemy.name === "なつかぜだいまおう" ? NATSUKAZE_MOVES : BOSS_MOVES;
+      const moves = enemy.name === "ナツカゼだいまおう" ? NATSUKAZE_MOVES : BOSS_MOVES;
       const move = moves[randInt(0, moves.length - 1)];
       attackIntro = move.line;
       bonus = move.bonus;
       feverish = move.feverish === true;
     }
     const wasInfected = state.infected;
-    const damage = Math.max(enemy.attack + bonus + randInt(0, 2) - state.armorDefense, 1);
+    const pierceArmor = enemy.name === "ナツカゼだいまおう";
+    const damage = Math.max(
+      enemy.attack + bonus + randInt(0, 2) - (pierceArmor ? 0 : state.armorDefense),
+      1,
+    );
     state.hp -= damage;
     let line = `${attackIntro} ゆうしゃは ${damage} の ダメージを うけた！（のこり HP ${Math.max(state.hp, 0)}/${state.maxHp}）`;
     if (wasInfected && state.hp > 0) {
@@ -692,7 +696,12 @@ ${artHtml}
         "からだが おもい……（こうげきりょく はんげん。かぜぐすりで なおそう）",
       ].join("\n");
     }
-    if (state.hp > 0 && !state.infected && random() < infectionChanceByArmor[state.armor]) {
+    if (
+      !enemy.boss &&
+      state.hp > 0 &&
+      !state.infected &&
+      random() < infectionChanceByArmor[state.armor]
+    ) {
       if (state.immunityCount > 0) {
         state.immunityCount -= 1;
         line += `\n\nウイルスが しのびよる……が、ワクチンの たいせいが かんせんを ふせいだ！（たいせい のこり ${state.immunityCount} かい）`;
@@ -867,7 +876,7 @@ ${artHtml}
       state.enemy = null;
       state.location = "venue";
       return [
-        "なつかぜだいまおうは がっくりと ひざを つき、",
+        "ナツカゼだいまおうは がっくりと ひざを つき、",
         "その すがたは きりのように ほどけて きえていった……。",
         "",
         "そのとき、てんから だれかが ゆっくりと おりてきた。",
@@ -924,7 +933,7 @@ ${artHtml}
         "くろい かげが ふくれあがり、うらの だいまおうが すがたを あらわす！",
         "",
         "なぞの こえ「よくぞ ここまで きた……だが せかいには、まだ たおれていない かぜが ある。",
-        "われこそは なつかぜだいまおう。インフルより しつこく、いつまでも ながびく……！」",
+        "われこそは ナツカゼだいまおう。インフルより しつこく、いつまでも ながびく……！」",
         "",
         startBattle(natsukaze),
       ].join("\n"),
@@ -1576,7 +1585,7 @@ ${artHtml}
       lines.push(`${enemy.name}を たおした！`);
       state.gold += enemy.gold;
       lines.push(`けいけんち ${enemy.exp}、${enemy.gold}ゴールド を かくとく！`);
-      if (enemy.name === "なつかぜだいまおう") {
+      if (enemy.name === "ナツカゼだいまおう") {
         lines.push(...gainExp(enemy.exp));
         lines.push("", secretBossEnd());
         toolsChanged();
@@ -1602,7 +1611,11 @@ ${artHtml}
       toolsChanged();
     } else {
       lines.push(`（てきの のこり HP: ${enemy.hp}/${enemy.maxHp}）`);
-      if (enemy.boss && enemy.hp <= 40 && enemy.attack === flulord.attack) {
+      if (
+        enemy.name === "インフルだいまおう" &&
+        enemy.hp <= 40 &&
+        enemy.attack === flulord.attack
+      ) {
         enemy.attack += 4;
         lines.push("", "インフルだいまおうは とつぜんへんい した！ こうげきが はげしさを ました！");
       }

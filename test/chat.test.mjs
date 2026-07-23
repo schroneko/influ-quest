@@ -484,7 +484,7 @@ test("secret boss battle shows battle commands and the natsukaze image", async (
       princessTalkCount: 3,
       inBattle: true,
       enemy: {
-        name: "なつかぜだいまおう",
+        name: "ナツカゼだいまおう",
         hp: 200,
         maxHp: 200,
         attack: 13,

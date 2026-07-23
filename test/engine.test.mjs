@@ -313,9 +313,9 @@ test("secret boss route unlocks after three princess talks and grants the true e
   assert.match(text(hint), /うでだめしを する/);
 
   const challenge = engine.handleChallengeSecretBoss();
-  assert.match(text(challenge), /なつかぜだいまおう/);
+  assert.match(text(challenge), /ナツカゼだいまおう/);
   assert.equal(engine.state.inBattle, true);
-  assert.equal(engine.state.enemy.name, "なつかぜだいまおう");
+  assert.equal(engine.state.enemy.name, "ナツカゼだいまおう");
   assert.equal(engine.state.enemy.maxHp, 200);
 
   let last = "";
@@ -494,10 +494,9 @@ test("boss mutates mid-battle when weakened", () => {
   engine.state.lairDepth = 5;
   engine.handleExplore();
   engine.handleAttack();
-  engine.handleAttack();
   const result = engine.handleAttack();
   assert.match(text(result), /とつぜんへんい した/);
-  assert.equal(engine.state.enemy.attack, 15);
+  assert.equal(engine.state.enemy.attack, 10);
 });
 
 test("regular battles end within three rounds via finisher", () => {

@@ -246,6 +246,9 @@ function buildSuggestions(state, sceneText) {
     return options;
   }
   if (state.cleared) {
+    if (state.cheatCleared) {
+      return ["はじめから やりなおす"];
+    }
     if (state.location === "office") {
       return [
         "ぶきやを のぞく",
@@ -323,7 +326,7 @@ const ENEMY_IMAGE_MAP = {
   "へんいかぶの おやだま": "variant-boss",
   インフルだいまおう: "influenza-lord",
   くしゃみこぞう: "sneeze-kid",
-  なつかぜだいまおう: "natsukaze-lord",
+  ナツカゼだいまおう: "natsukaze-lord",
 };
 
 function pickImage(state, reply) {

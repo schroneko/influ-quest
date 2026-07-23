@@ -36,7 +36,7 @@ export const enemyNames = [
   "へんいした へんいかぶ",
   "へんいかぶの おやだま",
   "インフルだいまおう",
-  "なつかぜだいまおう",
+  "ナツカゼだいまおう",
 ] as const;
 export const weaponAttackByName = {
   たいおんけい: 5,
@@ -411,6 +411,9 @@ export function readStoredGameData(
   | { ok: false; reason: "invalid" | "future-version"; issues?: string[] } {
   if (isRecord(value) && typeof value.exp === "number" && value.exp > 999999) {
     value = { ...value, exp: 999999 };
+  }
+  if (isRecord(value) && isRecord(value.enemy) && value.enemy.name === "なつかぜだいまおう") {
+    value = { ...value, enemy: { ...value.enemy, name: "ナツカゼだいまおう" } };
   }
   if (isRecord(value) && "version" in value) {
     if (value.version !== 1) {
