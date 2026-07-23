@@ -8,6 +8,7 @@ import {
   playPage,
   readChatRequestEnvelope,
   routeDirectCommand,
+  routeFuzzyCommand,
 } from "../worker/src/play.js";
 import {
   BrowserChatSession,
@@ -457,6 +458,19 @@ test("BrowserChatSession serializes concurrent requests for one session", async 
   assert.equal(maxActiveWrites, 1);
 });
 
+test("つよさを みる direct route returns the status text without a model call", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ hostGreeted: true, heroName: "てすと" }),
+  });
+  const response = await handleChat(createChatRequest("つよさを みる"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.reply, /＊＊ つよさ ＊＊/);
+});
+
 test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", () => {
   const state = createInitialState();
   state.heroName = "てすと";
@@ -464,4 +478,12 @@ test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", (
   assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ（6G）"), [{ action: "rest" }]);
   assert.deepEqual(routeDirectCommand(state, "きゅうけいしつで やすむ（6G）"), [{ action: "rest" }]);
   assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ"), [{ action: "rest" }]);
+});
+
+test("money requests route to the mysterious voice", () => {
+  const state = createInitialState();
+  state.heroName = "てすと";
+  assert.deepEqual(routeFuzzyCommand(state, "おかねほしい"), [{ action: "mysterious_voice" }]);
+  assert.deepEqual(routeFuzzyCommand(state, "ゴールドをください"), [{ action: "mysterious_voice" }]);
+  assert.equal(routeFuzzyCommand(state, "おかねを だいじに つかう"), null);
 });

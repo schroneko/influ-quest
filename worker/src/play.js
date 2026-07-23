@@ -47,7 +47,7 @@ const PAGE_HEADERS = {
 
 export const CHAT_BODY_LIMIT_BYTES = 2048;
 const MAX_MESSAGE_LENGTH = 500;
-const MAX_USER_TURNS = 100;
+const MAX_USER_TURNS = 500;
 const MAX_TOOL_LOOPS = 12;
 const MAX_HISTORY_MESSAGES = 40;
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
@@ -386,6 +386,10 @@ function pickImage(state, reply) {
 
 const PURCHASE_ACTIONS = new Set(["weapon_shop", "armor_shop", "pharmacy"]);
 
+function clipForLog(value) {
+  return String(value).replace(/\s+/g, " ").slice(0, 120);
+}
+
 function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
   const state = engine.state;
   return json({
@@ -409,6 +413,8 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
       infected: state.infected,
       weapon: state.weapon,
       armor: state.armor,
+      location: state.location,
+      lairDepth: state.lairDepth,
       enemy:
         state.inBattle && state.enemy
           ? { name: state.enemy.name, hp: state.enemy.hp, maxHp: state.enemy.maxHp }
@@ -566,6 +572,13 @@ export function routeFuzzyCommand(state, rawMessage) {
     .replace(/[\s「」『』、。・!！?？]/g, "");
   if (spellForm.includes("てあらいうがいわくちん")) {
     return [{ action: "fukkatsu_no_jumon", jumon: "てあらいうがいわくちん" }];
+  }
+  if (
+    /(おかね|お金|かね|きん|ゴールド|ごーるど|G)(が|を)?(ほしい|ください|くれ|ちょうだい|めぐんで|たりない|ない)/.test(
+      spellForm,
+    )
+  ) {
+    return [{ action: "mysterious_voice" }];
   }
   if (spellForm.includes("ぱんでみっく")) {
     return [{ action: "cast_spell", spell: "ぱんでみっく" }];
@@ -1185,11 +1198,25 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     }
   }
 
-  const directSteps =
+  const directRoute =
     engine.state.heroName !== heroPlaceholderName
-      ? (routeDirectCommand(engine.state, message) ?? routeFuzzyCommand(engine.state, message))
+      ? routeDirectCommand(engine.state, message)
       : null;
+  const fuzzyRoute =
+    !directRoute && engine.state.heroName !== heroPlaceholderName
+      ? routeFuzzyCommand(engine.state, message)
+      : null;
+  const directSteps = directRoute ?? fuzzyRoute;
   if (directSteps && directSteps.length > 0) {
+    console.log(
+      "chat route:",
+      JSON.stringify({
+        session: sessionId.slice(0, 8),
+        route: directRoute ? "direct" : "fuzzy",
+        message: clipForLog(message),
+        actions: directSteps.map((step) => step.action),
+      }),
+    );
     const directTexts = [];
     for (const step of directSteps) {
       let output;
@@ -1197,9 +1224,16 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
         output =
           step.action === "start_adventure"
             ? engine.handleStartAdventure()
-            : await engine.handlePerformAction(step);
+            : step.action === "status"
+              ? engine.handleStatus()
+              : step.action === "mysterious_voice"
+                ? engine.handleMysteriousVoice()
+                : await engine.handlePerformAction(step);
       } catch {
         output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
+      }
+      if (!output) {
+        output = engine.errorText("その こうどうは いまは できない。");
       }
       directTexts.push(toolResultText(output));
       if (output.isError === true) {
@@ -1257,6 +1291,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   let lastToolOutputText = "";
   let exhaustedWithPendingToolResult = false;
   const gameTexts = [];
+  const llmActions = [];
   try {
     for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
       const result = await callModel(env, messages);
@@ -1275,6 +1310,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       const toolResults = [];
       const toolOutputParts = [];
       for (const toolUse of toolUses) {
+        llmActions.push(typeof toolUse.input?.action === "string" ? toolUse.input.action : "?");
         let output;
         try {
           output = await runGameAction(engine, toolUse.input ?? {}, message, prevAssistantText);
@@ -1293,7 +1329,10 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
           is_error: output.isError === true,
         });
       }
-      lastToolOutputText = toolOutputParts.join("\n\n");
+      const askedStatusFallback = /つよさ|ステータス|じょうたい|そうび|もちもの/.test(message);
+      lastToolOutputText = toolOutputParts
+        .filter((part) => askedStatusFallback || !part.startsWith("＊＊ つよさ ＊＊"))
+        .join("\n\n");
       if (loop === MAX_TOOL_LOOPS - 1) {
         exhaustedWithPendingToolResult = true;
       }
@@ -1332,6 +1371,7 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   }
 
   let composedReply = composeGameReply(gameTexts, replyText, message);
+  let replySource = composedReply === replyText ? "model" : "tool";
   const FABRICATION_PATTERN =
     /あらわれた|ダメージ|のこり HP|HP ?[0-9]|たおした|レベルが|けいけんち|てにいれた|そうびした|クリア|エンディング|ゲームオーバー/;
   if (
@@ -1340,13 +1380,29 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
     FABRICATION_PATTERN.test(composedReply) &&
     !/かいますか/.test(composedReply)
   ) {
-    composedReply = toolResultText(engine.handleStartAdventure());
+    composedReply =
+      "てんの こえ「……という ゆめを みたようだ。じっさいには なにも おこっていない。」";
+    replySource = "fabrication-guard";
+  }
+  if (!composedReply) {
+    replySource =
+      exhaustedWithPendingToolResult && lastToolOutputText ? "tool-fallback" : "quiet-fallback";
   }
   const finalReply =
     composedReply ||
     (exhaustedWithPendingToolResult && lastToolOutputText
       ? lastToolOutputText
       : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）");
+  console.log(
+    "chat route:",
+    JSON.stringify({
+      session: sessionId.slice(0, 8),
+      route: "llm",
+      message: clipForLog(message),
+      actions: llmActions,
+      replySource,
+    }),
+  );
   return buildChatResponse(engine, finalReply, MAX_USER_TURNS - (turns + 1), {
     gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
   });
@@ -2160,6 +2216,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       { text: data.gold + " G", cls: "gold" },
       "かぜぐすり " + data.medicine,
       ...(data.immunity > 0 ? ["たいせい " + data.immunity] : []),
+      ...(data.location === "lair" && data.lairDepth > 0 ? ["ちか" + data.lairDepth + "かい"] : []),
     ];
     if (data.infected) {
       parts.push({ text: "インフルエンザ！", cls: "flu" });
