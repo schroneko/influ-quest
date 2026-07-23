@@ -59,7 +59,7 @@ if (fullMode) {
       return "まもりのまちへ いって";
     }
     if (status.includes("いま いる ばしょ: まもりのまち")) {
-      if (status.includes("じょうたい: インフルエンザ")) return "きゅうけいしつで やすんで";
+      if (status.includes("じょうたい: インフルエンザ")) return "くすりやで やすんで";
       if (status.includes("ぶき: たいおんけい")) return "アルコールスプレーを かって";
       if (status.includes("ぼうぐ: ふだんぎ") && !/ゴールド: [0-9]?[0-9]\n/.test(status + "\n")) {
         return "ファントムマスクを かって";

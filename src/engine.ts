@@ -320,7 +320,7 @@ const OFFICE_LINES = [
   "まちのひと「ここは まもりのまちだ。さいきん インフルが はやっていて こわいよ。」",
   "まちのひと「ウイルスのすみかに はいった ぼうけんしゃは みんな ねつを だして かえってくるらしいぜ……」",
   "まちのひと「ぶきやと ぼうぐやで そうびを ととのえて いくといい。」",
-  "くすりや「むりは いかんぞ。たおれた ものは しんりょうじょの ベッドに はこばれて くるのですぞ。」",
+  "くすりや「つかれたら うちの おくの ベッドで やすんで いきなされ。ひとやすみ 6ゴールドですぞ。」",
   "まちのひと「てあらいと うがいは さいきょうの ぼうぎょまほう さ。」",
   "まちのひと「マスクは かざりじゃ ないぜ。インフルエンザに かかると こうげきが はんげんに なっちまう。」",
   "まちのひと「すみかの ウイルスは とつぜんへんいして つよくなる ことが あるらしいぜ。」",
@@ -672,7 +672,7 @@ ${artHtml}
           "",
           "",
           "なんと ゆうしゃは インフルエンザに かかってしまった！",
-          "からだが おもい……（こうげきりょく はんげん。まもりのまちの きゅうけいしつに いくか、かぜぐすりで なおそう）",
+          "からだが おもい……（こうげきりょく はんげん。まもりのまちの くすりやで やすむか、かぜぐすりで なおそう）",
         ].join("\n");
       }
     }
@@ -693,11 +693,11 @@ ${artHtml}
         "＊＊ ゲームオーバー ＊＊",
         "",
         "…………",
-        "……きがつくと、しんりょうじょの ベッドの うえ だった。",
+        "……きがつくと、くすりやの おくの ベッドの うえ だった。",
         "",
         "いし「むちゃを しおって。しょじきんの はんぶんで てあてを して おいたぞ。」",
         "いし「HP は ぜんかい、インフルエンザも なおして おいた。つぎは そうびを ととのえて いきなさい。」",
-        "（まもりのまちの しんりょうじょで めを さました）",
+        "（まもりのまちの くすりやで めを さました）",
       ].join("\n");
     }
     return line;
@@ -972,11 +972,7 @@ ${artHtml}
       return ["まもりのまちへ いく", "つよさを みる"];
     }
     if (state.infected) {
-      return [
-        "きゅうけいしつで やすんで なおす（まもりのまち）",
-        "かぜぐすりを のむ",
-        "むりを しない",
-      ];
+      return ["くすりやで やすんで なおす（まもりのまち）", "かぜぐすりを のむ", "むりを しない"];
     }
     if (state.location === "office") {
       return [
@@ -1164,6 +1160,30 @@ ${artHtml}
           ].join("\n"),
         );
       }
+      if (heroName === "4ひえた") {
+        state.level = 10;
+        state.exp = 2898;
+        state.maxHp = maxHpForLevel(10);
+        state.hp = state.maxHp;
+        state.gold = 15143;
+        state.weapon = "アルコールスプレー";
+        state.weaponAttack = weaponAttackByName["アルコールスプレー"];
+        state.armor = "ファントムマスク";
+        state.armorDefense = armorDefenseByName["ファントムマスク"];
+        state.medicineCount = 3;
+        return okText(
+          [
+            ...successionLines,
+            `てんの こえ「そなたの なは ${state.heroName}。……ふるい いけの きおくが ながれこんで くる……」`,
+            "",
+            "いにしえの ゆうしゃの ちからが よみがえった！",
+            "レベルは 10（HP " + state.hp + "/" + state.maxHp + "）けいけんち 2898。",
+            "15143ゴールド を てにいれた！",
+            "アルコールスプレーと ファントムマスクを そうびした！",
+            "かぜぐすりを 3つ てにいれた！",
+          ].join("\n"),
+        );
+      }
       return okText(
         [...successionLines, `てんの こえ「そなたの なは ${state.heroName}。よい なだ！」`].join(
           "\n",
@@ -1336,8 +1356,7 @@ ${artHtml}
     const prefix = state.princessCarried ? "ちょまどひめを かついだまま いどうした。\n\n" : "";
     const arrival: Record<LocationId, string> = {
       venue: "おおてまちじょうに ついた。ぎょくざのまで だいじんが まっている。",
-      office:
-        "ここは まもりのまちだ。ぶきや・ぼうぐや・くすりや・きゅうけいしつ・しんりょうじょが ある。",
+      office: "ここは まもりのまちだ。ぶきや・ぼうぐや・くすりやが ある。",
       lair: "ウイルスのすみかに はいった。あたりは ウイルスだらけだ……（おくへ すすもう）",
     };
     return okText(maybeTelepathy(prefix + arrival[location]));
@@ -1554,20 +1573,22 @@ ${artHtml}
       return blocked;
     }
     if (state.location !== "office") {
-      return errorText("やすめるのは まもりのまちの きゅうけいしつだ。");
+      return errorText("やすめるのは まもりのまちの くすりやだ。");
     }
     if (state.gold < 6) {
-      return okText("きゅうけいしつの ひと「ひとやすみ 6ゴールドだよ。……おかねが たりないね。」");
+      return okText(
+        "くすりや「おくの ベッドは ひとやすみ 6ゴールドですぞ。……おかねが たりないですな。」",
+      );
     }
     state.gold -= 6;
     const lines = [
-      "きゅうけいしつの ひと「ひとやすみ 6ゴールドだよ。ゆっくり おやすみ。」",
+      "くすりや「おくの ベッドで ひとやすみ 6ゴールドですぞ。ゆっくり おやすみなされ。」",
       "",
       "…………",
       "",
     ];
     if (state.princessCarried) {
-      lines.push("きゅうけいしつの ひと「ゆうべは おたのしみでしたね。」", "");
+      lines.push("くすりや「ゆうべは おたのしみでしたね。」", "");
     }
     state.hp = state.maxHp;
     lines.push(`HP が ぜんかいふくした！（HP ${state.hp}/${state.maxHp}）`);
@@ -1869,39 +1890,6 @@ ${artHtml}
         return okText(secretResult);
       } catch {
         return errorText("でんせつの じゅもんが みだれた。もういちど ためしてくれ。");
-      }
-    }
-    if (normalizedJumon.includes("ふるいけやかわずとびこむ")) {
-      try {
-        const basho = persistTransaction(() => {
-          state.heroName = "4ひえた";
-          state.level = 10;
-          state.exp = 2898;
-          state.maxHp = maxHpForLevel(10);
-          state.hp = state.maxHp;
-          state.gold = 15143;
-          state.weapon = "アルコールスプレー";
-          state.weaponAttack = weaponAttackByName["アルコールスプレー"];
-          state.armor = "ファントムマスク";
-          state.armorDefense = armorDefenseByName["ファントムマスク"];
-          state.medicineCount = 3;
-          if (state.startedAtMs === 0) {
-            state.startedAtMs = now();
-          }
-          return [
-            "ふっかつのじゅもんが うけいれられた！",
-            "",
-            "ふるい いけの ほとりで、みずおとと ともに いにしえの ゆうしゃが よみがえる……。",
-            "そなたの なは 4ひえた！",
-            "レベルは 10（HP " + state.hp + "/" + state.maxHp + "）けいけんち 2898。",
-            "15143ゴールド を てにいれた！",
-            "アルコールスプレーと ファントムマスクを そうびした！",
-            "かぜぐすりを 3つ てにいれた！",
-          ].join("\n");
-        });
-        return okText(basho);
-      } catch {
-        return errorText("じゅもんが みだれた。もういちど ためしてくれ。");
       }
     }
     return errorText("じゅもんが ちがいます。");

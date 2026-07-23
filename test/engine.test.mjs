@@ -52,10 +52,10 @@ test("gargle spell heals and name spells fizzle", () => {
   assert.match(text(fizzled), /なにも おこらなかった/);
 });
 
-test("basho jumon revives the hero 4hieta", () => {
+test("naming the hero 4hieta grants the DQ1 haiku hero stats", async () => {
   const engine = newEngine();
-  const result = engine.handleFukkatsu({ jumon: "ふるいけや かわずとびこむ いけのおと ばしゃ" });
-  assert.match(text(result), /4ひえた/);
+  const result = await engine.handleNameHero({ name: "4ひえた" });
+  assert.match(text(result), /ふるい いけ/);
   assert.equal(engine.state.heroName, "4ひえた");
   assert.equal(engine.state.level, 10);
   assert.equal(engine.state.exp, 2898);
@@ -142,7 +142,7 @@ test("game over wakes the hero at the clinic with half gold", () => {
   engine.state.enemy = { name: "せきしぶき", hp: 999, attack: 5, exp: 8, gold: 18, boss: false, rounds: 0 };
   const result = engine.handleAttack();
   assert.match(text(result), /ゲームオーバー/);
-  assert.match(text(result), /しんりょうじょ/);
+  assert.match(text(result), /くすりや/);
   assert.equal(engine.state.location, "office");
   assert.equal(engine.state.gold, 50);
   assert.equal(engine.state.hp, engine.state.maxHp);
@@ -608,18 +608,6 @@ test("persist failures roll back the secret jumon path", () => {
   assert.match(text(result), /みだれた/);
   assert.deepEqual(engine.state, before);
   assert.equal(changed, 1);
-});
-
-test("persist failures roll back the basho jumon boost", () => {
-  const engine = newEngine({
-    persist: () => {
-      throw new Error("persist failed");
-    },
-  });
-  const before = cloneState(engine.state);
-  const result = engine.handleFukkatsu({ jumon: "ふるいけや かわずとびこむ みずのおと ばしや" });
-  assert.equal(result.isError, true);
-  assert.deepEqual(engine.state, before);
 });
 
 test("fan mode unlocks bebitaro telepathy", async () => {

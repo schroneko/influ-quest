@@ -233,8 +233,9 @@ export function createGameServer(options: GameServerOptions = {}): {
     rest: server.registerTool(
       "rest",
       {
-        title: "きゅうけいしつ",
-        description: "ひとやすみ して HP を ぜんかいふくする（6ゴールド）",
+        title: "くすりやでやすむ",
+        description:
+          "くすりやの おくの ベッドで ひとやすみ して HP を ぜんかいふくする（6ゴールド）",
       },
       withSafety(() => game().handleRest()),
     ),
@@ -380,7 +381,7 @@ export function createGameServer(options: GameServerOptions = {}): {
           uri: uri.href,
           text: [
             "おおてまちじょう ─── まもりのまち ─── ウイルスのすみか",
-            "（だいじん・ぎょくざのま）　（ぶきや・ぼうぐや・くすりや・きゅうけい・しんりょうじょ）　（？？？）",
+            "（だいじん・ぎょくざのま）　（ぶきや・ぼうぐや・くすりや）　（？？？）",
           ].join("\n"),
         },
       ],
