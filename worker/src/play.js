@@ -1,15 +1,14 @@
 import {
   ARMOR_SHOP,
-  createEngine,
   destinationNames,
   heroPlaceholderName,
   MEDICINE_PRICE,
-  performableActionNames,
   PROLOGUE_TEXT,
   shopItemNames,
   VACCINE_PRICE,
   WEAPON_SHOP,
 } from "../../src/engine.js";
+import { createGameRuntime } from "../../src/mcp-runtime.js";
 import { createInitialState, readStoredGameData } from "../../src/state.js";
 import { deletePlayerSnapshot, isHeroNameTaken, writePlayerSnapshot } from "./board.js";
 
@@ -64,48 +63,17 @@ const EXPLICIT_NEW_GAME_COMMANDS = new Set([
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 
-const chatActionNames = ["start_adventure", "status", "new_game", ...performableActionNames];
-
-const GAME_TOOL = {
-  name: "game",
-  description: [
-    "インフルクエストのゲームサーバーを操作する。action にコマンドを指定する。",
-    "start_adventure: 現在の状態と次の行動を見る。最初にかならず呼ぶ。",
-    "status: つよさを見る。name_hero: name でゆうしゃに名前をつける。",
-    "talk: その場所の人と話す。move: destination へ移動する。explore: すみかの奥へ進む。",
-    "attack / run: 戦闘中のコマンド。rest: くすりやのベッドで休んで回復し、インフルエンザも治す（6G）。",
-    "weapon_shop: ぶきを見る・item で買う。armor_shop: マスクなどのぼうぐを見る・item で買う。",
-    "pharmacy: くすりやを見る・item で買う。かぜぐすり 30G と ワクチン 100G（かんせんを 3 かい ふせぐ）。",
-    "medicine: かぜぐすりを飲んでインフルエンザを治す（戦闘中も可）。",
-    "cast_spell: spell でじゅもんを唱える。fukkatsu_no_jumon: プレイヤーが自分からふっかつのじゅもんを唱えたときだけ jumon に入れて呼ぶ。じゅもんをプレイヤーに尋ねるのは禁止。",
-    "answer_host: インフルだいまおうの誘いに answer（はい/いいえ）で答える。new_game: 最初からやり直す。",
-  ].join("\n"),
-  input_schema: {
-    type: "object",
-    properties: {
-      action: { type: "string", enum: chatActionNames },
-      name: { type: "string" },
-      destination: { type: "string", enum: [...destinationNames] },
-      item: { type: "string", enum: [...shopItemNames] },
-      spell: { type: "string" },
-      jumon: { type: "string" },
-      answer: { type: "string", enum: ["はい", "いいえ"] },
-    },
-    required: ["action"],
-  },
-};
-
 const SYSTEM_PROMPT = [
-  "あなたはレトロ RPG「インフルクエスト」のゲームマスターです。game ツールでゲームを進行してください。",
+  "あなたはレトロ RPG「インフルクエスト」のゲームマスターです。利用可能な MCP tools でゲームを進行してください。",
   "",
   "最重要ルール（やぶると せかいが こわれる）:",
-  "・じゅうような ばめんの 本文は、あなたが 書いては ならない。かならず game ツールの かえりちを 一字一句 そのまま（改行も 変えず）表示する",
+  "・じゅうような ばめんの 本文は、あなたが 書いては ならない。かならず MCP tool の かえりちを 一字一句 そのまま（改行も 変えず）表示する",
   "・とくに つぎは ぜったいに 要約・脚色・書きかえ しない: ゲーム開始（プロローグと 名前を きく文）、だいじんの クエスト、テレパシー、せきひ、インフルだいまおうの さそい（『とうだんわくの はんぶんを おまえに やろう！』）、エンディング、ゲームオーバー、爆速RTA、ふっかつのじゅもん、X の URL",
   "・これらの ばめんでは、あなた自身の ちのぶんを あたらしく くわえない。ツールの かえりちだけを 見せる",
   "",
   "進行のルール:",
   "・かならずツールを呼んで進める。ツールを呼ばずにゲーム展開を語らない",
-  "・うごきの めいれい（いく・すすむ・かう・たたかう・はなす など）には かならず game ツールを よぶ。ことばだけで うごいた ふりを するのは 禁止",
+  "・うごきの めいれい（いく・すすむ・かう・たたかう・はなす など）には かならず 対応するツールを よぶ。ことばだけで うごいた ふりを するのは 禁止",
   "・結果を捏造しない",
   "・プレイヤーの発言は日本語の自由文なので、意図に近いコマンドに変換する",
   "・ゲームと無関係の話題には応じず、ゲームへ誘導する",
@@ -428,15 +396,15 @@ export function routeDirectCommand(state, rawMessage) {
     return null;
   }
   if (state.inBattle) {
-    if (msg.includes("たたか") || msg.includes("こうげき")) return [{ action: "attack" }];
-    if (msg.includes("にげ")) return [{ action: "run" }];
-    if (msg.includes("かぜぐすり")) return [{ action: "medicine" }];
+    if (msg.includes("たたか") || msg.includes("こうげき")) return [{ name: "attack" }];
+    if (msg.includes("にげ")) return [{ name: "run" }];
+    if (msg.includes("かぜぐすり")) return [{ name: "medicine" }];
     return null;
   }
   if (state.hostAsking) {
-    if (msg === "はい") return [{ action: "answer_host", answer: "はい" }];
-    if (msg === "いいえ") return [{ action: "answer_host", answer: "いいえ" }];
-    if (msg === "だいまおうのはなしをもういちどきく") return [{ action: "talk" }];
+    if (msg === "はい") return [{ name: "answer_host", args: { answer: "はい" } }];
+    if (msg === "いいえ") return [{ name: "answer_host", args: { answer: "いいえ" } }];
+    if (msg === "だいまおうのはなしをもういちどきく") return [{ name: "talk" }];
   }
   if (
     msg === "はなす" ||
@@ -445,58 +413,58 @@ export function routeDirectCommand(state, rawMessage) {
     msg === "ちょまどひめにはなしかける" ||
     msg === "ちょまどひめにこえをかける"
   ) {
-    return [{ action: "talk" }];
+    return [{ name: "talk" }];
   }
   if (msg === "つよさをみる" || msg === "つよさをみせて") {
-    return [{ action: "status" }];
+    return [{ name: "status" }];
   }
   if (
     msg === "まもりのまちへいく" ||
     msg === "まもりのまちへもどる" ||
     msg === "まもりのまちへよってからとどける"
   ) {
-    return [{ action: "move", destination: "まもりのまち" }];
+    return [{ name: "move", args: { destination: "まもりのまち" } }];
   }
   if (msg === "おおてまちじょうへもどる") {
-    return [{ action: "move", destination: "おおてまちじょう" }];
+    return [{ name: "move", args: { destination: "おおてまちじょう" } }];
   }
   if (msg === "ウイルスのすみかへいそぐ" || msg === "ウイルスのすみかへいく") {
-    return [{ action: "move", destination: "ウイルスのすみか" }];
+    return [{ name: "move", args: { destination: "ウイルスのすみか" } }];
   }
   if (msg === "ちょまどひめをおおてまちじょうへとどける" || msg === "おおてまちじょうへいく") {
     const steps = [];
     if (state.location !== "venue") {
-      steps.push({ action: "move", destination: "おおてまちじょう" });
+      steps.push({ name: "move", args: { destination: "おおてまちじょう" } });
     }
     if (state.princessCarried) {
-      steps.push({ action: "talk" });
+      steps.push({ name: "talk" });
     }
-    return steps.length > 0 ? steps : [{ action: "talk" }];
+    return steps.length > 0 ? steps : [{ name: "talk" }];
   }
   if (msg === "おくへすすむ") {
-    return [{ action: "explore" }];
+    return [{ name: "explore" }];
   }
   if (
     msg === "くすりやでやすむ" ||
     msg === "きゅうけいしつでやすむ" ||
     msg === "おくのベッドでやすむ"
   ) {
-    return [{ action: "rest" }];
+    return [{ name: "rest" }];
   }
   if (/^ぶきや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
-    return [{ action: "weapon_shop" }];
+    return [{ name: "weapon_shop" }];
   }
   if (/^ぼうぐや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
-    return [{ action: "armor_shop" }];
+    return [{ name: "armor_shop" }];
   }
   if (/^くすりや(を|に|へ)?(みる|いく|はいる|のぞく)?$/.test(msg)) {
-    return [{ action: "pharmacy" }];
+    return [{ name: "pharmacy" }];
   }
   if (msg === "みせをでる") {
-    return [{ action: "talk" }];
+    return [{ name: "talk" }];
   }
   if (msg === "つづきをあそぶ" || msg === "つづきから") {
-    return [{ action: "start_adventure" }];
+    return [{ name: "start_adventure" }];
   }
   if (
     state.cleared &&
@@ -506,32 +474,32 @@ export function routeDirectCommand(state, rawMessage) {
       msg.includes("うらボス") ||
       msg.includes("うらぼす"))
   ) {
-    return [{ action: "challenge_secret_boss" }];
+    return [{ name: "challenge_secret_boss" }];
   }
   let match = msg.match(/^([^を]+)を(かう|うつ)$/);
   if (match) {
     const itemName = match[1];
     if (Object.prototype.hasOwnProperty.call(WEAPON_SHOP, itemName)) {
-      return [{ action: "weapon_shop", item: itemName }];
+      return [{ name: "weapon_shop", args: { item: itemName } }];
     }
     if (Object.prototype.hasOwnProperty.call(ARMOR_SHOP, itemName)) {
-      return [{ action: "armor_shop", item: itemName }];
+      return [{ name: "armor_shop", args: { item: itemName } }];
     }
     if (itemName === "ワクチン" || itemName === "かぜぐすり") {
-      return [{ action: "pharmacy", item: itemName }];
+      return [{ name: "pharmacy", args: { item: itemName } }];
     }
   }
   match = msg.match(/^ぶきやで(.+)をかう$/);
   if (match) {
-    return [{ action: "weapon_shop", item: match[1] }];
+    return [{ name: "weapon_shop", args: { item: match[1] } }];
   }
   match = msg.match(/^ぼうぐやで(.+)をかう$/);
   if (match) {
-    return [{ action: "armor_shop", item: match[1] }];
+    return [{ name: "armor_shop", args: { item: match[1] } }];
   }
   match = msg.match(/^くすりやで(.+)を(かう|うつ)$/);
   if (match) {
-    return [{ action: "pharmacy", item: match[1] }];
+    return [{ name: "pharmacy", args: { item: match[1] } }];
   }
   return null;
 }
@@ -563,20 +531,20 @@ export function routeFuzzyCommand(state, rawMessage) {
     .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
     .replace(/[\s「」『』、。・!！?？]/g, "");
   if (spellForm.includes("てあらいうがいわくちん")) {
-    return [{ action: "fukkatsu_no_jumon", jumon: "てあらいうがいわくちん" }];
+    return [{ name: "fukkatsu_no_jumon", args: { jumon: "てあらいうがいわくちん" } }];
   }
   if (
     /(おかね|お金|かね|きん|ゴールド|ごーるど|G)(が|を)?(ほしい|ください|くれ|ちょうだい|めぐんで|たりない|ない)/.test(
       spellForm,
     )
   ) {
-    return [{ action: "mysterious_voice" }];
+    return [{ name: "mysterious_voice" }];
   }
   if (spellForm.includes("ぱんでみっく")) {
-    return [{ action: "cast_spell", spell: "ぱんでみっく" }];
+    return [{ name: "cast_spell", args: { spell: "ぱんでみっく" } }];
   }
   if (spellForm.includes("ちょまど") && /となえ|じゅもん/.test(spellForm)) {
-    return [{ action: "cast_spell", spell: "ちょまど" }];
+    return [{ name: "cast_spell", args: { spell: "ちょまど" } }];
   }
   if (state.inBattle || state.hostAsking) {
     return null;
@@ -584,47 +552,47 @@ export function routeFuzzyCommand(state, rawMessage) {
   if (state.princessCarried && !state.cleared && /とどけ/.test(spellForm)) {
     const steps = [];
     if (state.location !== "venue") {
-      steps.push({ action: "move", destination: "おおてまちじょう" });
+      steps.push({ name: "move", args: { destination: "おおてまちじょう" } });
     }
-    steps.push({ action: "talk" });
+    steps.push({ name: "talk" });
     return steps;
   }
   const moveIntent = /いく|いって|いこう|むか|もど|しゅっぱつ|いそ/.test(spellForm);
   if (moveIntent) {
     if (spellForm.includes("まもりのまち")) {
-      return [{ action: "move", destination: "まもりのまち" }];
+      return [{ name: "move", args: { destination: "まもりのまち" } }];
     }
     if (spellForm.includes("ウイルスのすみか") || spellForm.includes("すみか")) {
-      return [{ action: "move", destination: "ウイルスのすみか" }];
+      return [{ name: "move", args: { destination: "ウイルスのすみか" } }];
     }
     if (spellForm.includes("おおてまちじょう")) {
-      return [{ action: "move", destination: "おおてまちじょう" }];
+      return [{ name: "move", args: { destination: "おおてまちじょう" } }];
     }
   }
   if (/おくへすすむ|おくへすすんで|おくへすすもう|さらにすすむ/.test(spellForm)) {
-    return [{ action: "explore" }];
+    return [{ name: "explore" }];
   }
   const msg = rawMessage.normalize("NFKC");
   const buyish = /かう|買|うつ|打つ|せっしゅ|ください|くれ|ほしい/.test(msg);
   if (/かぜぐすり|くすりをのむ/.test(msg) && /のむ|飲/.test(msg)) {
-    return [{ action: "medicine" }];
+    return [{ name: "medicine" }];
   }
   if (state.location === "office" && buyish) {
     for (const name of Object.keys(WEAPON_SHOP)) {
       if (msg.includes(name)) {
-        return [{ action: "weapon_shop", item: name }];
+        return [{ name: "weapon_shop", args: { item: name } }];
       }
     }
     for (const name of Object.keys(ARMOR_SHOP)) {
       if (msg.includes(name)) {
-        return [{ action: "armor_shop", item: name }];
+        return [{ name: "armor_shop", args: { item: name } }];
       }
     }
     if (msg.includes("ワクチン")) {
-      return [{ action: "pharmacy", item: "ワクチン" }];
+      return [{ name: "pharmacy", args: { item: "ワクチン" } }];
     }
     if (msg.includes("かぜぐすり")) {
-      return [{ action: "pharmacy", item: "かぜぐすり" }];
+      return [{ name: "pharmacy", args: { item: "かぜぐすり" } }];
     }
   }
   return null;
@@ -648,42 +616,36 @@ function playerAuthorizedPurchase(userMessage, item, prevAssistantText) {
   return false;
 }
 
-async function runGameAction(engine, input, userMessage, prevAssistantText) {
-  const action = input?.action;
-  if (action === "start_adventure") {
-    return engine.handleStartAdventure();
+function toAnthropicTools(tools) {
+  return tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description ?? "",
+    input_schema: tool.inputSchema,
+  }));
+}
+
+function toOpenAITools(tools) {
+  return tools.map((tool) => ({
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description ?? "",
+      parameters: tool.inputSchema,
+    },
+  }));
+}
+
+function guardedToolArguments(name, input, userMessage, prevAssistantText) {
+  if (
+    typeof input?.item === "string" &&
+    PURCHASE_ACTIONS.has(name) &&
+    !playerAuthorizedPurchase(userMessage, input.item, prevAssistantText)
+  ) {
+    const nextInput = { ...(input ?? {}) };
+    delete nextInput.item;
+    return nextInput;
   }
-  if (action === "status") {
-    return engine.handleStatus();
-  }
-  if (action === "new_game") {
-    return engine.handleNewGame({ confirmation: "NEW_GAME" });
-  }
-  if (performableActionNames.includes(action)) {
-    let item = typeof input.item === "string" ? input.item : undefined;
-    if (
-      item &&
-      PURCHASE_ACTIONS.has(action) &&
-      !playerAuthorizedPurchase(userMessage, item, prevAssistantText)
-    ) {
-      item = undefined;
-    }
-    return engine.handlePerformAction({
-      action,
-      name: typeof input.name === "string" ? input.name : undefined,
-      destination:
-        typeof input.destination === "string" && destinationNames.includes(input.destination)
-          ? input.destination
-          : typeof input.destination === "string"
-            ? destinationNames.find((name) => input.destination.includes(name))
-            : undefined,
-      item,
-      spell: typeof input.spell === "string" ? input.spell : undefined,
-      jumon: typeof input.jumon === "string" ? input.jumon : undefined,
-      answer: input.answer === "はい" || input.answer === "いいえ" ? input.answer : undefined,
-    });
-  }
-  return engine.errorText("しらない コマンドだ。");
+  return input ?? {};
 }
 
 function toolResultText(result) {
@@ -793,7 +755,7 @@ async function readModelError(response) {
   return error;
 }
 
-async function callAnthropicOnce(env, messages, model) {
+async function callAnthropicOnce(env, messages, model, tools) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -805,7 +767,7 @@ async function callAnthropicOnce(env, messages, model) {
       model,
       max_tokens: 800,
       system: SYSTEM_PROMPT,
-      tools: [GAME_TOOL],
+      tools: toAnthropicTools(tools),
       messages,
     }),
     signal: AbortSignal.timeout(30000),
@@ -816,21 +778,12 @@ async function callAnthropicOnce(env, messages, model) {
   return response.json();
 }
 
-async function callOpenAIOnce(env, messages, model, withReasoningEffort = true) {
+async function callOpenAIOnce(env, messages, model, tools, withReasoningEffort = true) {
   const body = {
     model,
     max_completion_tokens: 2000,
     messages: toOpenAIMessages(messages),
-    tools: [
-      {
-        type: "function",
-        function: {
-          name: GAME_TOOL.name,
-          description: GAME_TOOL.description,
-          parameters: GAME_TOOL.input_schema,
-        },
-      },
-    ],
+    tools: toOpenAITools(tools),
   };
   if (withReasoningEffort) {
     body.reasoning_effort = "low";
@@ -846,14 +799,14 @@ async function callOpenAIOnce(env, messages, model, withReasoningEffort = true) 
   });
   if (!response.ok) {
     if (response.status === 400 && withReasoningEffort) {
-      return callOpenAIOnce(env, messages, model, false);
+      return callOpenAIOnce(env, messages, model, tools, false);
     }
     throw await readModelError(response);
   }
   return fromOpenAIResponse(await response.json());
 }
 
-async function callModel(env, messages) {
+async function callModel(env, messages, tools) {
   const useOpenAI = hasOpenAIKey(env);
   const primaryModel =
     typeof env.CHAT_MODEL === "string" && env.CHAT_MODEL
@@ -883,9 +836,9 @@ async function callModel(env, messages) {
     }
     try {
       if (attempt.provider === "openai") {
-        return await callOpenAIOnce(env, messages, attempt.model);
+        return await callOpenAIOnce(env, messages, attempt.model, tools);
       }
-      return await callAnthropicOnce(env, messages, attempt.model);
+      return await callAnthropicOnce(env, messages, attempt.model, tools);
     } catch (error) {
       lastError = error;
       if (!RETRYABLE_STATUSES.has(error?.status)) {
@@ -894,7 +847,7 @@ async function callModel(env, messages) {
             "openai call failed, falling back to anthropic:",
             error instanceof Error ? error.message : String(error),
           );
-          return callAnthropicOnce(env, messages, DEFAULT_MODEL);
+          return callAnthropicOnce(env, messages, DEFAULT_MODEL, tools);
         }
         throw error;
       }
@@ -1022,7 +975,14 @@ async function publishSnapshot(env, playerId, snapshot, ctx) {
   } catch {}
 }
 
-export async function handleChat(request, env, ctx, sessionStore, requestEnvelope) {
+export async function handleChat(
+  request,
+  env,
+  ctx,
+  sessionStore,
+  requestEnvelope,
+  runtimeOptions = {},
+) {
   if (request.method !== "POST") {
     return json({ ok: false, error: "method_not_allowed" }, 405);
   }
@@ -1047,6 +1007,8 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   if (!envelope.ok) {
     return envelope.response;
   }
+  const runtimeFactory = runtimeOptions.createGameRuntime ?? createGameRuntime;
+  const observeMcp = runtimeOptions.observeMcp;
   const { sessionId, message } = envelope.value;
   const rateLimitError = await enforceChatRateLimits(env, request, sessionId);
   if (rateLimitError) {
@@ -1065,29 +1027,6 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
   const turns =
     session && Number.isInteger(session.turns) && session.turns >= 0 ? session.turns : 0;
   const wantsNewGame = isExplicitNewGameCommand(message);
-  if (wantsNewGame) {
-    const engine = createEngine({ state: createInitialState(), gameLog: [] }, { report: () => {} });
-    const intro = engine.handleStartAdventure();
-    const save = {
-      version: 1,
-      ...engine.state,
-      gameLog: [...engine.gameLog],
-      savedAt: new Date().toISOString(),
-    };
-    try {
-      await sessionStore.write(sessionId, { playerId, turns: 0, messages: [], save });
-    } catch {
-      return serviceUnavailableResponse();
-    }
-    try {
-      await deletePlayerSnapshot(env, playerId);
-    } catch {}
-    return buildChatResponse(
-      engine,
-      "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
-      MAX_USER_TURNS,
-    );
-  }
   if (turns >= MAX_USER_TURNS) {
     return json(
       {
@@ -1099,86 +1038,178 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       429,
     );
   }
-  const messages = session && Array.isArray(session.messages) ? [...session.messages] : [];
-  const loaded = loadSessionState(session);
-  if (loaded.restoreFailed) {
-    console.error(
-      "session restore failed:",
-      JSON.stringify({
-        sessionId: sessionId.slice(0, 8),
-        reason: loaded.restoreFailed.reason,
-        issues: loaded.restoreFailed.issues,
-        heroName: session?.save?.heroName,
-        level: session?.save?.level,
-        location: session?.save?.location,
-        lairDepth: session?.save?.lairDepth,
-        savedAt: session?.save?.savedAt,
-      }),
-    );
-    return serviceUnavailableResponse(
-      "ぼうけんのしょが みだれている。すこし まってから もういちど ためしてくれ。",
-    );
-  }
-
-  let latestSnapshot = null;
-  const engine = createEngine(loaded, {
-    report: (snapshot) => {
-      latestSnapshot = snapshot;
-    },
-    isNameTaken: (name) => isHeroNameTaken(env, name, playerId),
-  });
-
-  if (
-    engine.state.heroName !== heroPlaceholderName &&
-    message.replace(/\s/g, "").includes("爆速RTA")
-  ) {
-    const rta = engine.rtaClear();
-    const save = {
-      version: 1,
-      ...engine.state,
-      gameLog: [...engine.gameLog],
-      savedAt: new Date().toISOString(),
-    };
-    try {
-      await sessionStore.write(sessionId, { playerId, turns: turns + 1, messages: [], save });
-    } catch {
-      return serviceUnavailableResponse();
-    }
-    await publishSnapshot(env, playerId, engine.snapshot(), ctx);
-    return buildChatResponse(engine, toolResultText(rta), MAX_USER_TURNS - (turns + 1));
-  }
-
-  if (engine.state.heroName === heroPlaceholderName && !engine.state.cleared) {
-    const bracket = message.match(/「([^「」]{1,24})」/);
-    const plain = message.match(/なまえは\s*([^\s。、!！?？]{1,24})/);
-    const rawName = bracket ? bracket[1] : plain ? plain[1] : null;
-    if (rawName) {
-      let nameResult;
+  let runtime = null;
+  try {
+    if (wantsNewGame) {
+      runtime = await runtimeFactory({
+        loadedGame: { state: createInitialState(), gameLog: [] },
+        engineOptions: { report: () => {} },
+      });
+      observeMcp?.({ type: "callTool", name: "new_game", args: { confirmation: "NEW_GAME" } });
+      await runtime.callTool("new_game", { confirmation: "NEW_GAME" });
+      observeMcp?.({ type: "callTool", name: "start_adventure", args: {} });
+      const intro = await runtime.callTool("start_adventure", {});
       try {
-        nameResult = await engine.handleNameHero({ name: rawName });
+        await sessionStore.write(sessionId, {
+          playerId,
+          turns: 0,
+          messages: [],
+          save: runtime.snapshotSave(),
+        });
       } catch {
-        nameResult = engine.errorText("その なまえは つかえない。べつの なまえを たのむ。");
+        return serviceUnavailableResponse();
       }
-      const named = engine.state.heroName !== heroPlaceholderName;
-      const nameReply = named
-        ? toolResultText(nameResult) +
-          "\n\nおおてまちじょうの だいじんが そなたを まっている。はなしを きいてみよう。"
-        : toolResultText(nameResult);
+      try {
+        await deletePlayerSnapshot(env, playerId);
+      } catch {}
+      return buildChatResponse(
+        runtime.engine,
+        "あたらしい ぼうけんが はじまった！ きろくは まっさらだ。\n\n" + toolResultText(intro),
+        MAX_USER_TURNS,
+      );
+    }
+
+    const messages = session && Array.isArray(session.messages) ? [...session.messages] : [];
+    const loaded = loadSessionState(session);
+    if (loaded.restoreFailed) {
+      console.error(
+        "session restore failed:",
+        JSON.stringify({
+          sessionId: sessionId.slice(0, 8),
+          reason: loaded.restoreFailed.reason,
+          issues: loaded.restoreFailed.issues,
+          heroName: session?.save?.heroName,
+          level: session?.save?.level,
+          location: session?.save?.location,
+          lairDepth: session?.save?.lairDepth,
+          savedAt: session?.save?.savedAt,
+        }),
+      );
+      return serviceUnavailableResponse(
+        "ぼうけんのしょが みだれている。すこし まってから もういちど ためしてくれ。",
+      );
+    }
+
+    let latestSnapshot = null;
+    runtime = await runtimeFactory({
+      loadedGame: loaded,
+      engineOptions: {
+        report: (snapshot) => {
+          latestSnapshot = snapshot;
+        },
+        isNameTaken: (name) => isHeroNameTaken(env, name, playerId),
+      },
+    });
+    const engine = runtime.engine;
+    const executeRuntimeTool = async (name, input = {}, assistantText = "") => {
+      const args = guardedToolArguments(name, input, message, assistantText);
+      observeMcp?.({ type: "callTool", name, args });
+      return runtime.callTool(name, args);
+    };
+    const listRuntimeTools = async () => {
+      const result = await runtime.listTools();
+      observeMcp?.({
+        type: "listTools",
+        tools: result.tools.map((tool) => tool.name),
+      });
+      return result.tools;
+    };
+
+    if (
+      engine.state.heroName !== heroPlaceholderName &&
+      message.replace(/\s/g, "").includes("爆速RTA")
+    ) {
+      const rta = await executeRuntimeTool("rta_clear");
+      try {
+        await sessionStore.write(sessionId, {
+          playerId,
+          turns: turns + 1,
+          messages: [],
+          save: runtime.snapshotSave(),
+        });
+      } catch {
+        return serviceUnavailableResponse();
+      }
+      await publishSnapshot(env, playerId, engine.snapshot(), ctx);
+      return buildChatResponse(engine, toolResultText(rta), MAX_USER_TURNS - (turns + 1));
+    }
+
+    if (engine.state.heroName === heroPlaceholderName && !engine.state.cleared) {
+      const bracket = message.match(/「([^「」]{1,24})」/);
+      const plain = message.match(/なまえは\s*([^\s。、!！?？]{1,24})/);
+      const rawName = bracket ? bracket[1] : plain ? plain[1] : null;
+      if (rawName) {
+        let nameResult;
+        try {
+          nameResult = await executeRuntimeTool("name_hero", { name: rawName });
+        } catch {
+          nameResult = engine.errorText("その なまえは つかえない。べつの なまえを たのむ。");
+        }
+        const named = engine.state.heroName !== heroPlaceholderName;
+        const nameReply = named
+          ? toolResultText(nameResult) +
+            "\n\nおおてまちじょうの だいじんが そなたを まっている。はなしを きいてみよう。"
+          : toolResultText(nameResult);
+        messages.push({ role: "user", content: [{ type: "text", text: message }] });
+        messages.push({ role: "assistant", content: [{ type: "text", text: nameReply }] });
+        trimHistory(messages);
+        try {
+          await sessionStore.write(sessionId, {
+            playerId,
+            turns: turns + 1,
+            messages,
+            save: runtime.snapshotSave(),
+          });
+        } catch {
+          return serviceUnavailableResponse();
+        }
+        if (latestSnapshot) {
+          await publishSnapshot(env, playerId, latestSnapshot, ctx);
+        }
+        return buildChatResponse(engine, nameReply, MAX_USER_TURNS - (turns + 1));
+      }
+    }
+
+    const directRoute =
+      engine.state.heroName !== heroPlaceholderName ? routeDirectCommand(engine.state, message) : null;
+    const fuzzyRoute =
+      !directRoute && engine.state.heroName !== heroPlaceholderName
+        ? routeFuzzyCommand(engine.state, message)
+        : null;
+    const directSteps = directRoute ?? fuzzyRoute;
+    if (directSteps && directSteps.length > 0) {
+      console.log(
+        "chat route:",
+        JSON.stringify({
+          session: sessionId.slice(0, 8),
+          route: directRoute ? "direct" : "fuzzy",
+          message: clipForLog(message),
+          actions: directSteps.map((step) => step.name),
+        }),
+      );
+      const directTexts = [];
+      for (const step of directSteps) {
+        let output;
+        try {
+          output = await executeRuntimeTool(step.name, step.args ?? {});
+        } catch {
+          output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
+        }
+        directTexts.push(toolResultText(output));
+        if (output.isError === true) {
+          break;
+        }
+      }
+      const directReply = directTexts.join("\n\n");
       messages.push({ role: "user", content: [{ type: "text", text: message }] });
-      messages.push({ role: "assistant", content: [{ type: "text", text: nameReply }] });
+      messages.push({ role: "assistant", content: [{ type: "text", text: directReply }] });
       trimHistory(messages);
-      const nameSave = {
-        version: 1,
-        ...engine.state,
-        gameLog: [...engine.gameLog],
-        savedAt: new Date().toISOString(),
-      };
       try {
         await sessionStore.write(sessionId, {
           playerId,
           turns: turns + 1,
           messages,
-          save: nameSave,
+          save: runtime.snapshotSave(),
         });
       } catch {
         return serviceUnavailableResponse();
@@ -1186,218 +1217,146 @@ export async function handleChat(request, env, ctx, sessionStore, requestEnvelop
       if (latestSnapshot) {
         await publishSnapshot(env, playerId, latestSnapshot, ctx);
       }
-      return buildChatResponse(engine, nameReply, MAX_USER_TURNS - (turns + 1));
+      return buildChatResponse(engine, directReply, MAX_USER_TURNS - (turns + 1), {
+        gameOver: directTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
+      });
     }
-  }
 
-  const directRoute =
-    engine.state.heroName !== heroPlaceholderName
-      ? routeDirectCommand(engine.state, message)
-      : null;
-  const fuzzyRoute =
-    !directRoute && engine.state.heroName !== heroPlaceholderName
-      ? routeFuzzyCommand(engine.state, message)
-      : null;
-  const directSteps = directRoute ?? fuzzyRoute;
-  if (directSteps && directSteps.length > 0) {
-    console.log(
-      "chat route:",
-      JSON.stringify({
-        session: sessionId.slice(0, 8),
-        route: directRoute ? "direct" : "fuzzy",
-        message: clipForLog(message),
-        actions: directSteps.map((step) => step.action),
-      }),
-    );
-    const directTexts = [];
-    for (const step of directSteps) {
-      let output;
-      try {
-        output =
-          step.action === "start_adventure"
-            ? engine.handleStartAdventure()
-            : step.action === "status"
-              ? engine.handleStatus()
-              : step.action === "mysterious_voice"
-                ? engine.handleMysteriousVoice()
-                : await engine.handlePerformAction(step);
-      } catch {
-        output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
-      }
-      if (!output) {
-        output = engine.errorText("その こうどうは いまは できない。");
-      }
-      directTexts.push(toolResultText(output));
-      if (output.isError === true) {
+    const modelRateLimitError = await enforceModelRateLimit(env, sessionId);
+    if (modelRateLimitError) {
+      return modelRateLimitError;
+    }
+
+    let prevAssistantText = "";
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "assistant") {
+        const blocks = Array.isArray(messages[index].content) ? messages[index].content : [];
+        prevAssistantText = blocks
+          .filter((block) => block.type === "text")
+          .map((block) => block.text)
+          .join("\n");
         break;
       }
     }
-    const directReply = directTexts.join("\n\n");
+
     messages.push({ role: "user", content: [{ type: "text", text: message }] });
-    messages.push({ role: "assistant", content: [{ type: "text", text: directReply }] });
+
+    let replyText = "";
+    let lastToolOutputText = "";
+    let exhaustedWithPendingToolResult = false;
+    const gameTexts = [];
+    const llmActions = [];
+    try {
+      for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
+        const tools = await listRuntimeTools();
+        const result = await callModel(env, messages, tools);
+        const contentBlocks = Array.isArray(result?.content) ? result.content : [];
+        messages.push({ role: "assistant", content: contentBlocks });
+        const toolUses = contentBlocks.filter((block) => block.type === "tool_use");
+        const textParts = contentBlocks
+          .filter((block) => block.type === "text")
+          .map((block) => block.text);
+        if (textParts.length > 0) {
+          replyText += (replyText ? "\n\n" : "") + textParts.join("\n");
+        }
+        if (toolUses.length === 0 || result.stop_reason !== "tool_use") {
+          break;
+        }
+        const toolResults = [];
+        const toolOutputParts = [];
+        for (const toolUse of toolUses) {
+          llmActions.push(typeof toolUse.name === "string" ? toolUse.name : "?");
+          let output;
+          try {
+            output = await executeRuntimeTool(toolUse.name, toolUse.input ?? {}, prevAssistantText);
+          } catch {
+            output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
+          }
+          const outputText = toolResultText(output);
+          toolOutputParts.push(outputText);
+          if (output.isError !== true) {
+            gameTexts.push(outputText);
+          }
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: toolUse.id,
+            content: outputText,
+            is_error: output.isError === true,
+          });
+        }
+        const askedStatusFallback = /つよさ|ステータス|じょうたい|そうび|もちもの/.test(message);
+        lastToolOutputText = toolOutputParts
+          .filter((part) => askedStatusFallback || !part.startsWith("＊＊ つよさ ＊＊"))
+          .join("\n\n");
+        if (loop === MAX_TOOL_LOOPS - 1) {
+          exhaustedWithPendingToolResult = true;
+        }
+        messages.push({ role: "user", content: toolResults });
+      }
+    } catch (error) {
+      console.error("chat model failure:", error instanceof Error ? error.message : String(error));
+      return json(
+        { ok: false, error: "model_error", message: "つうしんが みだれた。もういちど ためすのだ。" },
+        502,
+      );
+    }
+
     trimHistory(messages);
-    const directSave = {
-      version: 1,
-      ...engine.state,
-      gameLog: [...engine.gameLog],
-      savedAt: new Date().toISOString(),
-    };
+
     try {
       await sessionStore.write(sessionId, {
         playerId,
         turns: turns + 1,
         messages,
-        save: directSave,
+        save: runtime.snapshotSave(),
       });
     } catch {
       return serviceUnavailableResponse();
     }
+
     if (latestSnapshot) {
       await publishSnapshot(env, playerId, latestSnapshot, ctx);
     }
-    return buildChatResponse(engine, directReply, MAX_USER_TURNS - (turns + 1), {
-      gameOver: directTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
-    });
-  }
 
-  const modelRateLimitError = await enforceModelRateLimit(env, sessionId);
-  if (modelRateLimitError) {
-    return modelRateLimitError;
-  }
-
-  let prevAssistantText = "";
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === "assistant") {
-      const blocks = Array.isArray(messages[index].content) ? messages[index].content : [];
-      prevAssistantText = blocks
-        .filter((block) => block.type === "text")
-        .map((block) => block.text)
-        .join("\n");
-      break;
+    let composedReply = composeGameReply(gameTexts, replyText, message);
+    let replySource = composedReply === replyText ? "model" : "tool";
+    const FABRICATION_PATTERN =
+      /あらわれた|ダメージ|のこり HP|HP ?[0-9]|たおした|レベルが|けいけんち|てにいれた|そうびした|クリア|エンディング|ゲームオーバー/;
+    if (
+      gameTexts.length === 0 &&
+      composedReply &&
+      FABRICATION_PATTERN.test(composedReply) &&
+      !/かいますか/.test(composedReply)
+    ) {
+      composedReply =
+        "てんの こえ「……という ゆめを みたようだ。じっさいには なにも おこっていない。」";
+      replySource = "fabrication-guard";
     }
-  }
-
-  messages.push({ role: "user", content: [{ type: "text", text: message }] });
-
-  let replyText = "";
-  let lastToolOutputText = "";
-  let exhaustedWithPendingToolResult = false;
-  const gameTexts = [];
-  const llmActions = [];
-  try {
-    for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
-      const result = await callModel(env, messages);
-      const contentBlocks = Array.isArray(result?.content) ? result.content : [];
-      messages.push({ role: "assistant", content: contentBlocks });
-      const toolUses = contentBlocks.filter((block) => block.type === "tool_use");
-      const textParts = contentBlocks
-        .filter((block) => block.type === "text")
-        .map((block) => block.text);
-      if (textParts.length > 0) {
-        replyText += (replyText ? "\n\n" : "") + textParts.join("\n");
-      }
-      if (toolUses.length === 0 || result.stop_reason !== "tool_use") {
-        break;
-      }
-      const toolResults = [];
-      const toolOutputParts = [];
-      for (const toolUse of toolUses) {
-        llmActions.push(typeof toolUse.input?.action === "string" ? toolUse.input.action : "?");
-        let output;
-        try {
-          output = await runGameAction(engine, toolUse.input ?? {}, message, prevAssistantText);
-        } catch {
-          output = engine.errorText("せかいが ふあんていになっている。もういちど ためしてくれ。");
-        }
-        const outputText = toolResultText(output);
-        toolOutputParts.push(outputText);
-        if (output.isError !== true) {
-          gameTexts.push(outputText);
-        }
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: toolUse.id,
-          content: outputText,
-          is_error: output.isError === true,
-        });
-      }
-      const askedStatusFallback = /つよさ|ステータス|じょうたい|そうび|もちもの/.test(message);
-      lastToolOutputText = toolOutputParts
-        .filter((part) => askedStatusFallback || !part.startsWith("＊＊ つよさ ＊＊"))
-        .join("\n\n");
-      if (loop === MAX_TOOL_LOOPS - 1) {
-        exhaustedWithPendingToolResult = true;
-      }
-      messages.push({ role: "user", content: toolResults });
+    if (!composedReply) {
+      replySource =
+        exhaustedWithPendingToolResult && lastToolOutputText ? "tool-fallback" : "quiet-fallback";
     }
-  } catch (error) {
-    console.error("chat model failure:", error instanceof Error ? error.message : String(error));
-    return json(
-      { ok: false, error: "model_error", message: "つうしんが みだれた。もういちど ためすのだ。" },
-      502,
+    const finalReply =
+      composedReply ||
+      (exhaustedWithPendingToolResult && lastToolOutputText
+        ? lastToolOutputText
+        : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）");
+    console.log(
+      "chat route:",
+      JSON.stringify({
+        session: sessionId.slice(0, 8),
+        route: "llm",
+        message: clipForLog(message),
+        actions: llmActions,
+        replySource,
+      }),
     );
+    return buildChatResponse(engine, finalReply, MAX_USER_TURNS - (turns + 1), {
+      gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
+    });
+  } finally {
+    await runtime?.close?.();
   }
-
-  trimHistory(messages);
-
-  const save = {
-    version: 1,
-    ...engine.state,
-    gameLog: [...engine.gameLog],
-    savedAt: new Date().toISOString(),
-  };
-  const nextSession = {
-    playerId,
-    turns: turns + 1,
-    messages,
-    save,
-  };
-  try {
-    await sessionStore.write(sessionId, nextSession);
-  } catch {
-    return serviceUnavailableResponse();
-  }
-
-  if (latestSnapshot) {
-    await publishSnapshot(env, playerId, latestSnapshot, ctx);
-  }
-
-  let composedReply = composeGameReply(gameTexts, replyText, message);
-  let replySource = composedReply === replyText ? "model" : "tool";
-  const FABRICATION_PATTERN =
-    /あらわれた|ダメージ|のこり HP|HP ?[0-9]|たおした|レベルが|けいけんち|てにいれた|そうびした|クリア|エンディング|ゲームオーバー/;
-  if (
-    gameTexts.length === 0 &&
-    composedReply &&
-    FABRICATION_PATTERN.test(composedReply) &&
-    !/かいますか/.test(composedReply)
-  ) {
-    composedReply =
-      "てんの こえ「……という ゆめを みたようだ。じっさいには なにも おこっていない。」";
-    replySource = "fabrication-guard";
-  }
-  if (!composedReply) {
-    replySource =
-      exhaustedWithPendingToolResult && lastToolOutputText ? "tool-fallback" : "quiet-fallback";
-  }
-  const finalReply =
-    composedReply ||
-    (exhaustedWithPendingToolResult && lastToolOutputText
-      ? lastToolOutputText
-      : "（しずかな かぜが ふいている……もういちど はなしかけてみよう）");
-  console.log(
-    "chat route:",
-    JSON.stringify({
-      session: sessionId.slice(0, 8),
-      route: "llm",
-      message: clipForLog(message),
-      actions: llmActions,
-      replySource,
-    }),
-  );
-  return buildChatResponse(engine, finalReply, MAX_USER_TURNS - (turns + 1), {
-    gameOver: gameTexts.some((text) => text.includes("＊＊ ゲームオーバー ＊＊")),
-  });
 }
 
 export function playPage() {

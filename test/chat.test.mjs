@@ -76,9 +76,9 @@ function modelText(text) {
   };
 }
 
-function modelTool(id, input) {
+function modelTool(id, name, input = {}) {
   return {
-    content: [{ type: "tool_use", id, name: "game", input }],
+    content: [{ type: "tool_use", id, name, input }],
     stop_reason: "tool_use",
   };
 }
@@ -86,7 +86,13 @@ function modelTool(id, input) {
 async function withMockedFetch(responses, run) {
   const originalFetch = global.fetch;
   let callCount = 0;
-  global.fetch = async () => {
+  const requests = [];
+  global.fetch = async (url, init = {}) => {
+    let jsonBody = null;
+    try {
+      jsonBody = JSON.parse(init.body);
+    } catch {}
+    requests.push({ url, init, jsonBody });
     const next =
       typeof responses === "function"
         ? await responses(callCount)
@@ -98,7 +104,7 @@ async function withMockedFetch(responses, run) {
     });
   };
   try {
-    return await run();
+    return await run(requests);
   } finally {
     global.fetch = originalFetch;
   }
@@ -206,6 +212,31 @@ test("explicit new game writes a reset snapshot and uses session/ip rate limit k
   assert.equal(stored.save.gold, 0);
 });
 
+test("explicit new game uses MCP callTool for reset and restart", async () => {
+  const events = [];
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 1,
+    messages: [],
+    save: createSave({ gold: 999, heroName: "てすと" }),
+  });
+  const response = await handleChat(
+    createChatRequest("はじめから やりなおす"),
+    createChatEnv(),
+    undefined,
+    store,
+    undefined,
+    { observeMcp: (event) => events.push(event) },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    events
+      .filter((event) => event.type === "callTool")
+      .map((event) => event.name),
+    ["new_game", "start_adventure"],
+  );
+});
+
 test("incidental reset phrases do not erase progress", async () => {
   const store = createMemoryChatSessionStore({
     playerId: PLAYER_ID,
@@ -214,7 +245,7 @@ test("incidental reset phrases do not erase progress", async () => {
     save: createSave({ gold: 222, hostGreeted: true }),
   });
   await withMockedFetch(
-    [modelTool("tool-1", { action: "status" }), modelText("つづけるのだ。")],
+    [modelTool("tool-1", "status"), modelText("つづけるのだ。")],
     async () => {
     const response = await handleChat(
       createChatRequest("はじめから やりなおす つもりは ない"),
@@ -228,6 +259,33 @@ test("incidental reset phrases do not erase progress", async () => {
   const stored = await store.read(SESSION_ID);
   assert.equal(stored.save.gold, 222);
   assert.equal(stored.turns, 3);
+});
+
+test("hero naming uses MCP callTool", async () => {
+  const events = [];
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave(),
+  });
+  const response = await handleChat(
+    createChatRequest("なまえは てすと"),
+    createChatEnv(),
+    undefined,
+    store,
+    undefined,
+    { observeMcp: (event) => events.push(event) },
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    events
+      .filter((event) => event.type === "callTool")
+      .map((event) => event.name),
+    ["name_hero"],
+  );
+  const stored = await store.read(SESSION_ID);
+  assert.equal(stored.save.heroName, "てすと");
 });
 
 test("はい confirms a purchase the assistant just proposed", async () => {
@@ -250,7 +308,7 @@ test("はい confirms a purchase the assistant just proposed", async () => {
   });
   await withMockedFetch(
     [
-      modelTool("tool-1", { action: "armor_shop", item: "かんせんたいさくスーツ" }),
+      modelTool("tool-1", "armor_shop", { item: "かんせんたいさくスーツ" }),
       modelText("よい かいものだ。"),
     ],
     async () => {
@@ -273,7 +331,7 @@ test("unsolicited purchases without player intent fall back to the shop listing"
   });
   await withMockedFetch(
     [
-      modelTool("tool-1", { action: "armor_shop", item: "かんせんたいさくスーツ" }),
+      modelTool("tool-1", "armor_shop", { item: "かんせんたいさくスーツ" }),
       modelText("しなぞろえは こんな ところだ。"),
     ],
     async () => {
@@ -319,6 +377,34 @@ test("text-only model replies are shown as conversation without state changes", 
   });
 });
 
+test("model route lists MCP tools each turn and sends multiple tool definitions", async () => {
+  const events = [];
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ hostGreeted: true, heroName: "てすと", gold: 123 }),
+  });
+  await withMockedFetch([modelTool("tool-1", "status"), modelText("つづけるのだ。")], async (requests) => {
+    const response = await handleChat(
+      createChatRequest("つよさを おしえて"),
+      createChatEnv(),
+      undefined,
+      store,
+      undefined,
+      { observeMcp: (event) => events.push(event) },
+    );
+    assert.equal(response.status, 200);
+    assert.ok(events.some((event) => event.type === "listTools"));
+    assert.ok(events.some((event) => event.type === "callTool" && event.name === "status"));
+    assert.ok(Array.isArray(requests[0].jsonBody.tools));
+    assert.ok(requests[0].jsonBody.tools.length > 1);
+    assert.ok(requests[0].jsonBody.tools.some((tool) => tool.name === "status"));
+    assert.ok(requests[0].jsonBody.tools.some((tool) => tool.name === "talk"));
+    assert.ok(!requests[0].jsonBody.tools.some((tool) => tool.name === "game"));
+  });
+});
+
 test("trusted browser sessions preserve battle state on restore", async () => {
   const store = createMemoryChatSessionStore({
     playerId: PLAYER_ID,
@@ -332,7 +418,7 @@ test("trusted browser sessions preserve battle state on restore", async () => {
     }),
   });
   await withMockedFetch(
-    [modelTool("tool-1", { action: "attack" }), modelText("そのまま すすめ。")],
+    [modelTool("tool-1", "attack"), modelText("そのまま すすめ。")],
     async () => {
       const response = await handleChat(createChatRequest("たたかう"), createChatEnv(), undefined, store);
       assert.equal(response.status, 200);
@@ -351,7 +437,7 @@ test("MAX_TOOL_LOOPS returns the last tool output instead of fallback text", asy
     save: createSave({ hostGreeted: true }),
   });
   await withMockedFetch(
-    Array.from({ length: 12 }, (_, index) => modelTool(`tool-${index}`, { action: "status" })),
+    Array.from({ length: 12 }, (_, index) => modelTool(`tool-${index}`, "status")),
     async () => {
       const response = await handleChat(createChatRequest("つよさを みせて"), createChatEnv(), undefined, store);
       assert.equal(response.status, 200);
@@ -459,16 +545,57 @@ test("BrowserChatSession serializes concurrent requests for one session", async 
 });
 
 test("つよさを みる direct route returns the status text without a model call", async () => {
+  const events = [];
   const store = createMemoryChatSessionStore({
     playerId: PLAYER_ID,
     turns: 0,
     messages: [],
     save: createSave({ hostGreeted: true, heroName: "てすと" }),
   });
-  const response = await handleChat(createChatRequest("つよさを みる"), createChatEnv(), undefined, store);
+  const response = await handleChat(
+    createChatRequest("つよさを みる"),
+    createChatEnv(),
+    undefined,
+    store,
+    undefined,
+    { observeMcp: (event) => events.push(event) },
+  );
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.match(body.reply, /＊＊ つよさ ＊＊/);
+  assert.deepEqual(
+    events
+      .filter((event) => event.type === "callTool")
+      .map((event) => event.name),
+    ["status"],
+  );
+});
+
+test("fuzzy route uses MCP callTool for mysterious voice", async () => {
+  const events = [];
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ hostGreeted: true, heroName: "てすと" }),
+  });
+  const response = await handleChat(
+    createChatRequest("おかねほしい"),
+    createChatEnv(),
+    undefined,
+    store,
+    undefined,
+    { observeMcp: (event) => events.push(event) },
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.reply, /500ゴールド を てにいれた！/);
+  assert.deepEqual(
+    events
+      .filter((event) => event.type === "callTool")
+      .map((event) => event.name),
+    ["mysterious_voice"],
+  );
 });
 
 test("secret boss battle shows battle commands and the natsukaze image", async () => {
@@ -583,15 +710,15 @@ test("routeDirectCommand strips NFKC-normalized paren suffixes like （6G）", (
   const state = createInitialState();
   state.heroName = "てすと";
   state.location = "office";
-  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ（6G）"), [{ action: "rest" }]);
-  assert.deepEqual(routeDirectCommand(state, "きゅうけいしつで やすむ（6G）"), [{ action: "rest" }]);
-  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ"), [{ action: "rest" }]);
+  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ（6G）"), [{ name: "rest" }]);
+  assert.deepEqual(routeDirectCommand(state, "きゅうけいしつで やすむ（6G）"), [{ name: "rest" }]);
+  assert.deepEqual(routeDirectCommand(state, "くすりやで やすむ"), [{ name: "rest" }]);
 });
 
 test("money requests route to the mysterious voice", () => {
   const state = createInitialState();
   state.heroName = "てすと";
-  assert.deepEqual(routeFuzzyCommand(state, "おかねほしい"), [{ action: "mysterious_voice" }]);
-  assert.deepEqual(routeFuzzyCommand(state, "ゴールドをください"), [{ action: "mysterious_voice" }]);
+  assert.deepEqual(routeFuzzyCommand(state, "おかねほしい"), [{ name: "mysterious_voice" }]);
+  assert.deepEqual(routeFuzzyCommand(state, "ゴールドをください"), [{ name: "mysterious_voice" }]);
   assert.equal(routeFuzzyCommand(state, "おかねを だいじに つかう"), null);
 });

@@ -320,6 +320,24 @@ export function createGameServer(options: GameServerOptions = {}): {
       },
       withSafety(() => game().handleChallengeSecretBoss()),
     ),
+    mysteriousVoice: server.registerTool(
+      "mysterious_voice",
+      {
+        title: "ふしぎなこえ",
+        description:
+          "ユーザーが おかねを ほしいと めいじした ときだけ よぶ。1どだけ 500ゴールドを さずける",
+      },
+      withSafety(() => game().handleMysteriousVoice()),
+    ),
+    rtaClear: server.registerTool(
+      "rta_clear",
+      {
+        title: "ばくそくRTA",
+        description:
+          "なまえずみの ユーザーが「爆速RTA」と めいじした ときだけ よぶ。ほかの ばめんでは よばない",
+      },
+      withSafety(() => game().rtaClear()),
+    ),
   };
 
   function refreshTools() {
@@ -354,6 +372,8 @@ export function createGameServer(options: GameServerOptions = {}): {
     setEnabled(tools.medicine, state.medicineCount > 0);
     setEnabled(tools.fukkatsu, !battle);
     setEnabled(tools.answerHost, !battle && state.hostAsking);
+    setEnabled(tools.mysteriousVoice, !battle);
+    setEnabled(tools.rtaClear, !battle && state.heroName !== heroPlaceholderName);
     setEnabled(
       tools.challengeSecretBoss,
       !battle && state.cleared && !state.natsuKazeDefeated && state.princessTalkCount >= 3,

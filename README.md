@@ -1,12 +1,16 @@
 # influ-quest
 
-インフルエンザテーマのレトロ風テキスト RPG「インフルクエスト」。MCP（Model Context Protocol）の機能をひと通り体験できるゲームサーバーです。イベント登壇用に作られており、会場参加者がスマホの Claude から remote MCP コネクタとして接続して遊べます。
+インフルエンザテーマのレトロ風テキスト RPG「インフルクエスト」。MCP（Model Context Protocol）の機能をひと通り体験できるゲームサーバーです。第一推奨はブラウザ版で、画像と音つきの完全な体験を遊べます。Claude の remote MCP コネクタは互換経路として残してあります。
 
 インフルだいまおうに さらわれた ちょまどひめを、みんなで たすけにいきます。インフルエンサーではなく、インフルエンザのクエストです。
 
 ## 遊び方
 
-### Claude から遊ぶ（remote MCP コネクタ）
+### ブラウザ版（第一推奨）
+
+`https://influ-quest.nukoevi.app/play` を開くと、Workers 上のエージェントループがゲームマスターを務めるチャット UI で遊べます。画像と音を含む完全な体験はこちらです。`OPENAI_API_KEY` が設定されていれば OpenAI（gpt-5.6-luna）、なければ `ANTHROPIC_API_KEY` の Anthropic（claude-haiku-4-5）を使います。どちらかのキーが設定されている場合のみ有効です。
+
+### Claude から遊ぶ（remote MCP コネクタ互換経路）
 
 コネクタに登録する URL:
 
@@ -18,9 +22,7 @@ https://influ-quest.nukoevi.app/mcp
 2. 設定の「コネクタ」から「カスタムコネクタを追加」を開き、上記の URL を登録する
 3. 新しいチャットでコネクタを有効にして「インフルクエストをはじめて」と話しかける
 
-### ブラウザ版（Claude アカウント不要）
-
-`https://influ-quest.nukoevi.app/play` を開くと、Workers 上のエージェントループがゲームマスターを務めるチャット UI で遊べます。`OPENAI_API_KEY` が設定されていれば OpenAI（gpt-5.6-luna）、なければ `ANTHROPIC_API_KEY` の Anthropic（claude-haiku-4-5）を使います。どちらかのキーが設定されている場合のみ有効です。
+remote MCP コネクタ版は互換経路です。ゲーム進行はできますが、ブラウザ版と違って画像と音は出ません。
 
 ### ローカルで遊ぶ（STDIO）
 
@@ -65,6 +67,7 @@ src/
   state.ts     ゲーム状態のスキーマ
   engine.ts    ゲームロジックと文言（純粋モジュール、3 アダプタで共有）
   mcp.ts       MCP ツール・リソース・プロンプト登録
+  mcp-runtime.ts ブラウザ AI 用の MCP Client・Server 接続
   stdio.ts     STDIO アダプタ（ローカル用）
   storage.ts   ローカルセーブ（STDIO 用）
   reporting.ts 会場ボードへの HTTP 送信（STDIO 用）

@@ -980,11 +980,11 @@ const PAGE = String.raw`<!doctype html>
   <section class="dqwin join" data-title="― あそびかた ―">
     <p class="talk"><span class="speaker">やくざいし</span>「よくきた ぼうけんしゃよ。てじゅんは みっつ じゃ。」</p>
     <ol>
-      <li>スマホで claude.ai にログインする（無料アカウントで OK）</li>
-      <li>設定の「コネクタ」からカスタムコネクタを追加して、URL に <code>https://influ-quest.nukoevi.app/mcp</code> を入れる</li>
-      <li>新しいチャットで「インフルクエストをはじめて」と話しかける</li>
+      <li><a href="/play">ブラウザばん</a> を ひらく</li>
+      <li>がぞうと おとつきの ぼうけんを はじめる</li>
+      <li>Claude の コネクタばんは ごかん けいろで、<code>https://influ-quest.nukoevi.app/mcp</code> を つかう</li>
     </ol>
-    <p class="talk"><span class="speaker">やくざいし</span>「コネクタが つかえぬ ものは <a href="/play">ブラウザばん</a> へ ゆくがよい。むりょうプランで すでに べつの コネクタを つかっている ものは いちど はずすのじゃ。」</p>
+    <p class="talk"><span class="speaker">やくざいし</span>「ブラウザばんが ほんけで、がぞうも おとも でるのじゃ。Claude の コネクタばんでも あそべるが、そちらは がぞうと おとが でぬ ごかん けいろじゃ。」</p>
   </section>
   <main class="dqwin board" data-title="― ぼうけんのしょ ―" data-view="loading">
     <section class="statusbar" aria-live="polite" aria-atomic="true">
