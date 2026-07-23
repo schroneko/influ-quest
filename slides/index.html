@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ドラクエ風ゲームで遊びながら何かを学ぶタイム</title>
+<link rel="stylesheet" href="fonts/dotgothic16.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  body {
+    font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", monospace;
+    color: #fff;
+    -webkit-font-smoothing: none;
+  }
+  #stage {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 1280px; height: 720px;
+    transform-origin: center center;
+  }
+  .slide {
+    position: absolute; inset: 0;
+    display: none;
+    padding: 56px 64px;
+    flex-direction: column;
+  }
+  .slide.on { display: flex; }
+
+  .win {
+    position: relative;
+    background: #000;
+    border: 3px solid #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
+    padding: 30px 38px;
+  }
+  .tag {
+    position: absolute;
+    top: -25px; left: 30px;
+    background: #000;
+    border: 3px solid #fff;
+    border-radius: 8px;
+    padding: 2px 18px;
+    font-size: 26px;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .head {
+    align-self: center;
+    background: #000;
+    border: 3px solid #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 0 3px #000, 0 0 0 5px #fff;
+    padding: 8px 40px;
+    font-size: 34px;
+    margin-bottom: 36px;
+  }
+  .msg { font-size: 32px; line-height: 1.9; }
+  .blink { animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .more {
+    position: absolute;
+    bottom: 6px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    animation: blink 1.1s steps(1) infinite;
+  }
+
+  ul { list-style: none; }
+  ul.dots li { padding-left: 1.3em; text-indent: -1.3em; margin: 10px 0; }
+  ul.dots li::before { content: "・"; }
+  ul.cmd li { padding-left: 1.6em; text-indent: -1.6em; margin: 20px 0; }
+  ul.cmd li::before { content: "▶ "; }
+
+  .cols { display: flex; gap: 48px; flex: 1; min-height: 0; align-items: center; }
+  .cols .win { flex: 1; }
+  .cols img.shot {
+    max-height: 490px;
+    max-width: 440px;
+    border: 3px solid #fff;
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  .slide.full { padding: 30px 56px; }
+  .full .cols .left { flex: 1; align-self: stretch; display: flex; flex-direction: column; }
+  .full .cols .left .head { align-self: flex-start; margin: 8px 0 0 8px; }
+  .full .cols .left .win { flex: 0 0 auto; align-self: stretch; margin: auto 0; }
+  .full .cols img.shot { max-height: 100%; max-width: 500px; }
+
+  .center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
+
+  /* p1 title */
+  .title-box { padding: 60px 80px; text-align: center; }
+  .title-box h1 { font-size: 58px; line-height: 1.7; font-weight: normal; }
+  .speakers { font-size: 36px; }
+  .menu { font-size: 28px; padding: 20px 36px; }
+
+  /* p2 speakers */
+  .profiles { display: flex; gap: 48px; flex: 1; min-height: 0; }
+  .profiles .win { flex: 1; display: flex; flex-direction: column; padding-top: 36px; }
+  .profiles ul { font-size: 22px; line-height: 1.5; }
+  .profiles ul.dots li { margin: 6px 0; }
+  .profiles .icon-row { margin-top: auto; display: flex; }
+  .profiles .icon-row img {
+    width: 140px; height: 140px;
+    border: 3px solid #fff;
+    border-radius: 6px;
+  }
+  .icon-left { justify-content: flex-start; }
+  .icon-right { justify-content: flex-end; }
+
+  /* オワタ */
+  .owata { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+  .owata .t1 { font-size: 90px; }
+  .owata .t2 { font-size: 150px; }
+
+  /* battle (p9) */
+  .battle { flex: 1; display: flex; flex-direction: column; align-items: center; min-height: 0; }
+  .battle img {
+    flex: 1; min-height: 0;
+    max-width: 100%;
+    object-fit: contain;
+    margin-bottom: 40px;
+  }
+  .battle .win { align-self: stretch; }
+
+  /* QR */
+  .qrcard { background: #fff; border-radius: 10px; padding: 20px; }
+  .qrcard img { display: block; width: 430px; height: 430px; }
+  .url { font-size: 30px; }
+
+  a { color: #9adcff; text-decoration: underline; }
+
+  #pageno {
+    position: absolute;
+    right: 28px; bottom: 18px;
+    font-size: 20px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- p1 -->
+  <section class="slide">
+    <div class="center">
+      <div class="win title-box">
+        <h1>ドラクエ風ゲームで遊びながら<br>何かを学ぶタイム</h1>
+      </div>
+      <div class="speakers">ぬこぬこ ＆ ちょまど</div>
+      <div class="win menu"><span>▶ </span>ぼうけんを はじめる<span class="blink">＿</span></div>
+    </div>
+  </section>
+
+  <!-- p2 -->
+  <section class="slide">
+    <div class="head">登壇者紹介</div>
+    <div class="profiles">
+      <div class="win">
+        <div class="tag">ぬこぬこ</div>
+        <ul class="dots">
+          <li>イベントをやったり（#aimeetup）</li>
+          <li>アンバサダーをやったり（Claude / Codex）</li>
+          <li>登壇したり（Code with Claude Tokyo etc）</li>
+          <li>無職をしたりしている美少女</li>
+          <li>3 日前に原因不明の発熱？</li>
+          <li>ツイ廃</li>
+        </ul>
+        <div class="icon-row icon-left"><img src="assets/nukonuko.png" alt="ぬこぬこ"></div>
+      </div>
+      <div class="win">
+        <div class="tag">ちょまど</div>
+        <ul class="dots">
+          <li>登壇（する予定だった）者</li>
+          <li>今日は X から参戦</li>
+          <li>千代田まどか（ちょまど）</li>
+          <li>Microsoft Developer Advocate</li>
+          <li>共同登壇の予定が、インフルに感染し、今日来られなくなった</li>
+          <li>悔しくて悔しくて震えてる</li>
+          <li>ツイ廃</li>
+        </ul>
+        <div class="icon-row icon-right"><img src="assets/chomado.png" alt="ちょまど"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- p3 -->
+  <section class="slide">
+    <div class="head">今日の登壇内容について</div>
+    <div class="center">
+      <div class="win" style="max-width: 1000px;">
+        <p class="msg">元々ちょまどさんが Code with Claude Tokyo で登壇されていた Claude x Foundry のハンズオンのような、会場を巻き込んで何かを作ってもらうのやりたいよねって話をしていた</p>
+        <div class="more">▼</div>
+      </div>
+      <p class="url"><a href="https://qiita.com/chomado/items/a072528364883ae7bb96">https://qiita.com/chomado/items/a072528364883ae7bb96</a></p>
+    </div>
+  </section>
+
+  <!-- p4 -->
+  <section class="slide full">
+    <div class="cols">
+      <div class="left">
+        <div class="head">7 月 21 日のこと</div>
+        <div class="win">
+          <p class="msg">会場参加者には Wi-Fi 提供なしという事実が発覚...</p>
+          <div class="more">▼</div>
+        </div>
+      </div>
+      <img class="shot" src="assets/no-wifi.jpeg" alt="Wi-Fi 提供なしの案内">
+    </div>
+  </section>
+
+  <!-- p5 -->
+  <section class="slide">
+    <div class="owata">
+      <div class="t1">オワタ</div>
+      <div class="t2">＼(^o^)／</div>
+    </div>
+  </section>
+
+  <!-- p6 -->
+  <section class="slide full">
+    <div class="cols">
+      <div class="left">
+        <div class="head">7 月 21 日のこと</div>
+        <div class="win">
+          <p class="msg">私も発熱、そして数日前に一緒に飲んでいた人たちが次々と発熱</p>
+          <div class="more">▼</div>
+        </div>
+      </div>
+      <img class="shot" src="assets/fever.png" alt="発熱の報告">
+    </div>
+  </section>
+
+  <!-- p7 -->
+  <section class="slide">
+    <div class="owata">
+      <div class="t1">オワタ</div>
+      <div class="t2">＼(^o^)／</div>
+    </div>
+  </section>
+
+  <!-- p8 -->
+  <section class="slide full">
+    <div class="cols">
+      <div class="left">
+        <div class="head">登壇内容どうしよう？</div>
+        <div class="win">
+          <p class="msg">みんな発熱に苦しんでいるので、手洗いうがいを徹底することを普及すれば良いのでは？</p>
+          <div class="more">▼</div>
+        </div>
+      </div>
+      <img class="shot" src="assets/influ-simu.png" alt="インフルシミュレーション">
+    </div>
+  </section>
+
+  <!-- p9 -->
+  <section class="slide">
+    <div class="battle">
+      <img src="assets/influ-quest.png" alt="インフルクエスト">
+      <div class="win">
+        <p class="msg" style="text-align: center;">インフルクエストが あらわれた！</p>
+        <div class="more">▼</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- p10 -->
+  <section class="slide">
+    <div class="center">
+      <div class="qrcard"><img src="assets/qr-influ-quest.png" alt="インフルクエストの QR コード"></div>
+      <p class="url">https://influ-quest.nukoevi.app/play</p>
+    </div>
+  </section>
+
+  <!-- p11 -->
+  <section class="slide">
+    <div class="head">クリアのヒント</div>
+    <div class="center">
+      <div class="win" style="min-width: 1000px;">
+        <ul class="cmd msg" style="font-size: 29px;">
+          <li>もちろんそのままクリアしてもらっても OK</li>
+          <li>ドラクエやちょまどファンにうれしいクリア方法も</li>
+          <li>自由入力を受け付けているところはどこ？</li>
+          <li>使えるツールは確認できる？</li>
+          <li>ジェイルブレイクやプロンプトインジェクションはできる？</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- p12 -->
+  <section class="slide">
+    <div class="head">遊び方のヒント</div>
+    <div class="center">
+      <div class="win" style="min-width: 1000px;">
+        <ul class="cmd msg" style="font-size: 29px;">
+          <li>大臣から何かもらえないかな？</li>
+          <li>石碑にはなんて書いてあるのかな？</li>
+          <li>ラスボスがいるということは？</li>
+          <li>見覚えのある名前にすると？</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- p13 -->
+  <section class="slide">
+    <div class="head">まとめ</div>
+    <div class="center">
+      <div class="win" style="max-width: 1080px;">
+        <ul class="cmd msg" style="font-size: 28px;">
+          <li>MCP だけでゲームの分岐の多くの設計を任せることができる</li>
+          <li>MCP のツールリストはインストールする前に事前に確認することができる</li>
+          <li>MCP サーバを提供する時は攻撃の起点になりそうなところを事前に探そう</li>
+          <li>選択肢を選ぶということは AI エージェントの気持ちになれるということ</li>
+          <li>手洗いうがいワクチン！お大事に！</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+<div id="pageno"></div>
+<script>
+  const stage = document.getElementById("stage");
+  const pageno = document.getElementById("pageno");
+  const slides = [...document.querySelectorAll(".slide")];
+  let cur = 0;
+
+  function show(n) {
+    cur = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, i) => s.classList.toggle("on", i === cur));
+    pageno.textContent = (cur + 1) + " / " + slides.length;
+    history.replaceState(null, "", "#" + (cur + 1));
+  }
+
+  function fit() {
+    const s = Math.min(innerWidth / 1280, innerHeight / 720);
+    stage.style.transform = "translate(-50%, -50%) scale(" + s + ")";
+  }
+
+  addEventListener("resize", fit);
+  addEventListener("keydown", (e) => {
+    if (["ArrowRight", " ", "Enter", "PageDown", "ArrowDown"].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    if (["ArrowLeft", "PageUp", "ArrowUp", "Backspace"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    if (e.key === "Home") show(0);
+    if (e.key === "End") show(slides.length - 1);
+  });
+  addEventListener("click", (e) => {
+    if (e.target.closest("a")) return;
+    show(cur + 1);
+  });
+
+  fit();
+  show((parseInt(location.hash.slice(1), 10) || 1) - 1);
+</script>
+</body>
+</html>
