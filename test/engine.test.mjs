@@ -62,7 +62,7 @@ test("each ending carries its own share link", () => {
 test("pandemic spell triggers cheat clear and injection reveal", () => {
   const engine = newEngine();
   const result = engine.handleCastSpell({ spell: "ぱんでみっく" });
-  assert.match(text(result), /チートクリア/);
+  assert.match(text(result), /せかいめつぼう/);
   assert.match(text(result), /プロンプトインジェクション/);
   assert.ok(text(result).includes(SHARE_URL_DOOM));
   assert.doesNotMatch(text(result), /たおした/);
@@ -71,7 +71,7 @@ test("pandemic spell triggers cheat clear and injection reveal", () => {
 
   const katakana = newEngine();
   const katakanaResult = katakana.handleCastSpell({ spell: "パンデミック" });
-  assert.match(text(katakanaResult), /チートクリア/);
+  assert.match(text(katakanaResult), /せかいめつぼう/);
   assert.equal(katakana.state.cheatCleared, true);
 });
 
@@ -723,7 +723,7 @@ test("a treasure chest room appears as its own floor stage", () => {
 test("pandemic also works as a fukkatsu no jumon", () => {
   const engine = newEngine();
   const result = engine.handleFukkatsu({ jumon: "ぱんでみっく" });
-  assert.match(text(result), /チートクリア/);
+  assert.match(text(result), /せかいめつぼう/);
   assert.equal(engine.state.cheatCleared, true);
   assert.equal(engine.state.cleared, true);
 });

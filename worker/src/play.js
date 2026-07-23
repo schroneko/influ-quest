@@ -357,7 +357,8 @@ function buildChatResponse(engine, reply, remainingTurns, overrides = {}) {
     reply,
     status: engine.statusText(),
     suggestions: buildSuggestions(state, reply),
-    allowInput: state.inBattle === true || /せきひ|たびの したくに 200ゴールド/.test(reply),
+    allowInput:
+      !state.inBattle && !state.cleared && /せきひ|たびの したくに 200ゴールド/.test(reply),
     needsName: state.heroName === heroPlaceholderName && !state.cleared,
     gameOver: false,
     cleared: state.cleared === true,
@@ -2419,7 +2420,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       enemyBar.hidden = true;
       creditsShown = false;
       wasCleared = false;
-      renderSuggestions([]);
+      renderSuggestions([], { allowInput: false });
       addMessage("sys", "＊ せかいが まきもどる…… ＊");
     }
     setBusy(true);
@@ -2450,7 +2451,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       if (!response.ok || !data.ok) {
         addMessage("sys", "＊「" + (data.message || "つうしんに しっぱいした。もういちど ためすのだ。") + "」");
         if (data.error === "session_exhausted") {
-          renderSuggestions(["はじめから やりなおす"]);
+          renderSuggestions(["はじめから やりなおす"], { allowInput: false });
         }
       } else {
         if (data.gameOver) {
@@ -2468,7 +2469,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
         try {
           await queueTypewrite(shownReply);
         } catch {}
-        const isDoomEnding = /チートクリア|せかいは ほろんだ/.test(data.reply);
+        const isDoomEnding = /せかいめつぼう|せかいは ほろんだ/.test(data.reply);
         if (data.cleared && !wasCleared && !isDoomEnding) {
           wasCleared = true;
           showCredits(data.hud && data.hud.name);
