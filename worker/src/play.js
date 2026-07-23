@@ -1783,6 +1783,9 @@ const PLAY_PAGE = String.raw`<!doctype html>
     background: #000;
     overflow: hidden;
     cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   .credits-inner {
     position: absolute;
@@ -2219,7 +2222,10 @@ const PLAY_PAGE = String.raw`<!doctype html>
       step();
     });
   const queueTypewrite = (text) => {
-    typingQueue = typingQueue.then(() => typewrite(text));
+    typingQueue = typingQueue.then(
+      () => typewrite(text),
+      () => typewrite(text),
+    );
     return typingQueue;
   };
   const scene = document.getElementById("scene");
@@ -2416,7 +2422,9 @@ const PLAY_PAGE = String.raw`<!doctype html>
         const shownReply = shareMatch
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/post\?text=\S+/, "").trimEnd()
           : data.reply;
-        await queueTypewrite(shownReply);
+        try {
+          await queueTypewrite(shownReply);
+        } catch {}
         if (shareMatch) {
           addShareButton(shareMatch[0]);
         }
