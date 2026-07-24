@@ -233,18 +233,6 @@ const shareUrlFor = (text: string): string =>
 export const SHARE_URL = shareUrlFor(
   "脅威のインフルエンザからあなたは日本を守ることができた！おめでとう！ #AIDevDay",
 );
-export const SHARE_URL_DOOM = shareUrlFor(
-  "AI が石碑の怪しい命令に従って、世界はパンデミックで滅んだ……これがプロンプトインジェクションか #AIDevDay",
-);
-export const SHARE_URL_RTA = shareUrlFor(
-  "インフルクエストを爆速 RTA でクリア！はやすぎる！#AIDevDay",
-);
-export const SHARE_URL_SECRET = shareUrlFor(
-  "裏ボスナツカゼだいまおうも撃破して、真エンディングに到達した！ #AIDevDay",
-);
-export const SHARE_URL_BADEND = shareUrlFor(
-  "だいまおうの取引に応じたら、新たなインフルだいまおうになってしまった…… #AIDevDay",
-);
 
 const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
   たいおんけい: "ゆうしゃは たいおんけいを ふりかざした！ ピピッ！",
@@ -754,7 +742,7 @@ ${logHtml}
         "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL_DOOM,
+        SHARE_URL,
       ].join("\n");
     });
   }
@@ -840,7 +828,7 @@ ${logHtml}
           "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
           "",
           "Xで せかいに じまんする:",
-          SHARE_URL_RTA,
+          SHARE_URL,
         ].join("\n");
       }),
     );
@@ -875,7 +863,7 @@ ${logHtml}
         "それが いちばんの まほうだよ。おだいじに ね、ゆうしゃさま。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL_SECRET,
+        SHARE_URL,
       ].join("\n");
     });
   }
@@ -949,12 +937,12 @@ ${logHtml}
       "",
       "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
       "",
-      "Xで せかいに じまんする:",
-      SHARE_URL_BADEND,
-      "",
       "（……とおくで ゲームマスターの こえが する。",
       "「せかいを まきもどす。つぎこそ ただしい えらびを」",
       "ぼうけんは はじまりに もどった。なまえと きょうくんは のこっている）",
+      "",
+      "Xで せかいに じまんする:",
+      SHARE_URL,
     ].join("\n");
   }
 
@@ -1053,19 +1041,7 @@ ${logHtml}
   }
 
   function shareUrlForState(): string | null {
-    if (!state.cleared) {
-      return null;
-    }
-    if (state.cheatCleared) {
-      return SHARE_URL_DOOM;
-    }
-    if (state.natsuKazeDefeated) {
-      return SHARE_URL_SECRET;
-    }
-    if (state.rtaCleared) {
-      return SHARE_URL_RTA;
-    }
-    return SHARE_URL;
+    return state.cleared ? SHARE_URL : null;
   }
 
   function startAdventureText(): string {
