@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "MCP demo: influenza-themed retro RPG server",
+  "license": "MIT",
   "bin": {
     "influenza-quest": "dist/stdio.js"
   },
