@@ -1,5 +1,5 @@
 import { McpAgent } from "agents/mcp";
-import { createEngine, type Engine } from "../../src/engine.js";
+import { createEngine, heroPlaceholderName, type Engine } from "../../src/engine.js";
 import { createGameServer } from "../../src/mcp.js";
 import { createInitialState, readStoredGameData } from "../../src/state.js";
 import { BrowserChatSession, routeChatRequest } from "./chat-session.js";
@@ -55,6 +55,9 @@ export class QuestAgent extends McpAgent<Env, QuestAgentState, Record<string, ne
       },
       report: (snapshot) => {
         this.persistSave(engine);
+        if (snapshot.name === heroPlaceholderName) {
+          return;
+        }
         const nowMs = Date.now();
         const important =
           snapshot.cleared ||
