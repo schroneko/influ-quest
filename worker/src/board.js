@@ -72,6 +72,18 @@ const INCOMING_FIELD_NAMES = new Set(
   ["id", ...RECORD_FIELD_NAMES].filter((field) => field !== "updatedAt"),
 );
 
+export const formatClearTime = (clearMs) => {
+  if (typeof clearMs !== "number" || !Number.isFinite(clearMs) || clearMs <= 0) {
+    return "--";
+  }
+  const totalMilliseconds = Math.floor(clearMs);
+  const minutes = Math.floor(totalMilliseconds / 60000);
+  const remainingMilliseconds = totalMilliseconds % 60000;
+  const seconds = Math.floor(remainingMilliseconds / 1000);
+  const milliseconds = String(remainingMilliseconds % 1000).padStart(3, "0");
+  return `${minutes}ふん ${seconds}.${milliseconds}びょう`;
+};
+
 class ServiceUnavailableError extends Error {
   constructor(message = "Service temporarily unavailable") {
     super(message);
@@ -1078,13 +1090,7 @@ const PAGE = String.raw`<!doctype html>
     if (player.location === "まもりのまち") return { label: "まちを さんさく", cls: "" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
-  const formatClearTime = (clearMs) => {
-    if (typeof clearMs !== "number" || clearMs <= 0) {
-      return "--";
-    }
-    const totalSeconds = Math.floor(clearMs / 1000);
-    return String(Math.floor(totalSeconds / 60)) + "ふん " + String(totalSeconds % 60) + "びょう";
-  };
+  const formatClearTime = ${formatClearTime.toString()};
   const renderPlayers = (players) => {
     const fragment = document.createDocumentFragment();
     if (!players.length) {

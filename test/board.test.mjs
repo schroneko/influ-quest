@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { createBoard, isHeroNameTaken, writePlayerSnapshot } from "../worker/src/board.js";
+import {
+  createBoard,
+  formatClearTime,
+  isHeroNameTaken,
+  writePlayerSnapshot,
+} from "../worker/src/board.js";
 
 function createPlayersKv() {
   const puts = [];
@@ -36,6 +41,14 @@ function boardEnv(overrides = {}) {
 function makeRequest(path, options = {}) {
   return new Request(`https://example.com${path}`, options);
 }
+
+test("formatClearTime preserves millisecond precision", () => {
+  assert.equal(formatClearTime(70), "0ふん 0.070びょう");
+  assert.equal(formatClearTime(1092), "0ふん 1.092びょう");
+  assert.equal(formatClearTime(61233), "1ふん 1.233びょう");
+  assert.equal(formatClearTime(0), "--");
+  assert.equal(formatClearTime(Number.NaN), "--");
+});
 
 test("writePlayerSnapshot respects EVENT_WRITE_UNTIL and invalid progression", async () => {
   const closedEnv = boardEnv({
@@ -176,6 +189,10 @@ test("board page exposes gold column, updated ranking text, and page security he
   const html = await response.text();
   assert.match(html, /<th scope="col">ゴールド<\/th>/);
   assert.match(html, /クリアタイム → レベル → ゴールド → なまえ/);
+  assert.match(html, /padStart\(3, "0"\)/);
+  const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
   assert.match(html, /og:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
   assert.match(html, /twitter:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
 });
