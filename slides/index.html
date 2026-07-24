@@ -102,14 +102,14 @@
   .profiles .win { flex: 1; display: flex; flex-direction: column; padding-top: 36px; }
   .profiles ul { font-size: 22px; line-height: 1.5; }
   .profiles ul.dots li { margin: 6px 0; }
-  .profiles .icon-row { margin-top: auto; display: flex; }
+  .profiles .icon-row { position: absolute; bottom: 30px; }
+  .icon-left { left: 38px; }
+  .icon-right { right: 38px; }
   .profiles .icon-row img {
     width: 140px; height: 140px;
     border: 3px solid #fff;
     border-radius: 6px;
   }
-  .icon-left { justify-content: flex-start; }
-  .icon-right { justify-content: flex-end; }
 
   /* オワタ */
   .owata { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
@@ -169,7 +169,7 @@
           <li>3 日前に原因不明の発熱？</li>
           <li>ツイ廃</li>
         </ul>
-        <div class="icon-row icon-left"><img src="assets/nukonuko.png" alt="ぬこぬこ"></div>
+        <div class="icon-row icon-right"><img src="assets/nukonuko.png" alt="ぬこぬこ"></div>
       </div>
       <div class="win">
         <div class="tag">ちょまど</div>
@@ -192,7 +192,7 @@
     <div class="head">今日の登壇内容について</div>
     <div class="center">
       <div class="win" style="max-width: 1000px;">
-        <p class="msg">元々ちょまどさんが Code with Claude Tokyo で登壇されていた Claude x Foundry のハンズオンのような、会場を巻き込んで何かを作ってもらうのやりたいよねって話をしていた</p>
+        <p class="msg">元々ちょまどさんが Code with Claude Tokyo で登壇されていた Claude x Foundry のハンズオンのような、会場を巻き込んで何かを作ってもらうのやりたいよねって話をしていた（7/14）</p>
         <div class="more">▼</div>
       </div>
       <p class="url"><a href="https://qiita.com/chomado/items/a072528364883ae7bb96">https://qiita.com/chomado/items/a072528364883ae7bb96</a></p>
