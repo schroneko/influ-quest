@@ -411,6 +411,7 @@ test("natsukaze always defeats an unvaccinated RTA-level hero", async () => {
 
   engine.handleChallengeSecretBoss();
   assert.equal(engine.state.inBattle, true);
+  assert.equal(engine.shareUrlForState(), null);
   let last = "";
   while (engine.state.inBattle) {
     last = text(engine.handleAttack());

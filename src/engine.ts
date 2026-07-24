@@ -1050,7 +1050,7 @@ ${logHtml}
   }
 
   function shareUrlForState(): string | null {
-    if (!state.cleared) {
+    if (!state.cleared || state.inBattle) {
       return null;
     }
     if (state.cheatCleared) {
