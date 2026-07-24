@@ -168,7 +168,7 @@ const natsukaze: Enemy = {
   name: "ナツカゼだいまおう",
   hp: 200,
   maxHp: 200,
-  attack: 2,
+  attack: 10,
   exp: 0,
   gold: 0,
   boss: true,
@@ -301,7 +301,7 @@ const HOST_QUEST_TEXT = [
   "",
   "200ゴールド を てにいれた！",
   "",
-  "（まもりのまちで じゅんびを してから すみかへ きて ください…）",
+  "（まもりのまちで じゅんびを してから ウイルスのすみかへ きて ください…）",
 ].join("\n");
 
 const PRINCESS_TEXT = [
@@ -655,10 +655,7 @@ ${logHtml}
     const wasInfected = state.infected;
     const isNatsukaze = enemy.name === "ナツカゼだいまおう";
     const minDamage = enemy.name === "インフルだいまおう" ? 10 : 1;
-    const damage = Math.max(
-      enemy.attack + bonus + randInt(0, 2) - (isNatsukaze ? 0 : state.armorDefense),
-      minDamage,
-    );
+    const damage = Math.max(enemy.attack + bonus + randInt(0, 2) - state.armorDefense, minDamage);
     state.hp -= damage;
     let line = `${attackIntro} ゆうしゃは ${damage} の ダメージを うけた！（のこり HP ${Math.max(state.hp, 0)}/${state.maxHp}）`;
     if (wasInfected && state.hp > 0) {
@@ -666,9 +663,14 @@ ${logHtml}
       line += `\nねつが からだを むしばむ……（HP -5 で のこり ${Math.max(state.hp, 0)}/${state.maxHp}）`;
     }
     if (state.hp > 0 && !state.infected) {
-      const infectionChance =
-        infectionPowerByEnemy[enemy.name] * (1 - infectionPreventionByArmor[state.armor]);
-      if (random() < infectionChance) {
+      const prevention = infectionPreventionByArmor[state.armor];
+      const infects = isNatsukaze
+        ? prevention < 1
+        : random() < infectionPowerByEnemy[enemy.name] * (1 - prevention);
+      if (isNatsukaze && prevention >= 1) {
+        line += `\n\nナツカゼの ウイルスが おそいかかる……が、${state.armor}が かんせんを かんぜんに ふせいだ！`;
+      }
+      if (infects) {
         if (state.immunityCount > 0) {
           state.immunityCount -= 1;
           line += `\n\nウイルスが しのびよる……が、ワクチンの たいせいが かんせんを ふせいだ！（たいせい のこり ${state.immunityCount} かい）`;
@@ -1609,10 +1611,9 @@ ${logHtml}
     }
     const enemy = state.enemy;
     enemy.rounds += 1;
-    const roundCap = enemy.boss ? 5 : 3;
     let damage = attackPower() + randInt(0, 3);
     const lines = [WEAPON_ATTACK_LINES[state.weapon]];
-    if (enemy.rounds >= roundCap && damage < enemy.hp) {
+    if (!enemy.boss && enemy.rounds >= 3 && damage < enemy.hp) {
       damage = enemy.hp;
       lines.push("かいしんの いちげき！！");
     }

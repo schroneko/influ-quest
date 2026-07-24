@@ -392,6 +392,82 @@ test("secret boss route unlocks after three princess talks and grants the true e
   assert.match(text(blocked), /なおった/);
 });
 
+test("natsukaze always defeats an unvaccinated RTA-level hero", async () => {
+  const engine = newEngine();
+  await engine.handleNameHero({ name: "むぼうび" });
+  engine.state.cleared = true;
+  engine.state.bossDefeated = true;
+  engine.state.level = 5;
+  engine.state.exp = 120;
+  engine.state.maxHp = 62;
+  engine.state.hp = 62;
+  engine.state.weapon = "でんせつのワクチンソード";
+  engine.state.weaponAttack = 30;
+  engine.state.armor = "かんせんたいさくスーツ";
+  engine.state.armorDefense = 7;
+  engine.state.immunityCount = 0;
+  engine.state.princessTalkCount = 3;
+  engine.state.location = "venue";
+
+  engine.handleChallengeSecretBoss();
+  assert.equal(engine.state.inBattle, true);
+  let last = "";
+  while (engine.state.inBattle) {
+    last = text(engine.handleAttack());
+  }
+  assert.match(last, /ゲームオーバー/);
+  assert.equal(engine.state.natsuKazeDefeated, false);
+  assert.equal(engine.state.location, "town");
+});
+
+test("natsukaze loses to the same hero once vaccinated", async () => {
+  const engine = newEngine();
+  await engine.handleNameHero({ name: "せっしゅずみ" });
+  engine.state.cleared = true;
+  engine.state.bossDefeated = true;
+  engine.state.level = 5;
+  engine.state.exp = 120;
+  engine.state.maxHp = 62;
+  engine.state.hp = 62;
+  engine.state.weapon = "でんせつのワクチンソード";
+  engine.state.weaponAttack = 30;
+  engine.state.armor = "かんせんたいさくスーツ";
+  engine.state.armorDefense = 7;
+  engine.state.immunityCount = 3;
+  engine.state.princessTalkCount = 3;
+  engine.state.location = "venue";
+
+  engine.handleChallengeSecretBoss();
+  let last = "";
+  while (engine.state.inBattle) {
+    last = text(engine.handleAttack());
+  }
+  assert.match(last, /しんの エンディング/);
+  assert.equal(engine.state.natsuKazeDefeated, true);
+});
+
+test("roto armor blocks natsukaze infection completely", async () => {
+  const engine = newEngine();
+  await engine.handleNameHero({ name: "ろと" });
+  engine.state.cleared = true;
+  engine.state.bossDefeated = true;
+  engine.state.immunityCount = 0;
+  engine.state.princessTalkCount = 3;
+  engine.state.location = "venue";
+
+  engine.handleChallengeSecretBoss();
+  assert.equal(engine.state.inBattle, true);
+  const first = text(engine.handleAttack());
+  assert.match(first, /かんぜんに ふせいだ/);
+  assert.equal(engine.state.infected, false);
+  let last = first;
+  while (engine.state.inBattle) {
+    last = text(engine.handleAttack());
+  }
+  assert.match(last, /しんの エンディング/);
+  assert.equal(engine.state.infected, false);
+});
+
 test("secret boss cannot be challenged before clearing", () => {
   const engine = newEngine();
   engine.state.heroName = "みくりあ";
