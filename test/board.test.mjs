@@ -2,7 +2,8 @@ import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
   createBoard,
-  formatClearTime,
+  findSecondTiedPlayers,
+  formatClearTimeParts,
   isHeroNameTaken,
   writePlayerSnapshot,
 } from "../worker/src/board.js";
@@ -42,12 +43,33 @@ function makeRequest(path, options = {}) {
   return new Request(`https://example.com${path}`, options);
 }
 
-test("formatClearTime preserves millisecond precision", () => {
-  assert.equal(formatClearTime(70), "0ふん 0.070びょう");
-  assert.equal(formatClearTime(1092), "0ふん 1.092びょう");
-  assert.equal(formatClearTime(61233), "1ふん 1.233びょう");
-  assert.equal(formatClearTime(0), "--");
-  assert.equal(formatClearTime(Number.NaN), "--");
+test("formatClearTimeParts separates compact seconds from milliseconds", () => {
+  assert.deepEqual(formatClearTimeParts(70), { text: "0ふん 0びょう", milliseconds: "070" });
+  assert.deepEqual(formatClearTimeParts(1092), { text: "0ふん 1びょう", milliseconds: "092" });
+  assert.deepEqual(formatClearTimeParts(61233), { text: "1ふん 1びょう", milliseconds: "233" });
+  assert.deepEqual(formatClearTimeParts(0), { text: "--", milliseconds: "" });
+  assert.deepEqual(formatClearTimeParts(Number.NaN), { text: "--", milliseconds: "" });
+});
+
+test("findSecondTiedPlayers only ties records in the same ranking category", () => {
+  const normalA = { clearMs: 1092, cleared: true, cheatCleared: false, rtaCleared: false };
+  const normalB = { clearMs: 1574, cleared: true, cheatCleared: false, rtaCleared: false };
+  const normalOther = { clearMs: 2182, cleared: true, cheatCleared: false, rtaCleared: false };
+  const rtaA = { clearMs: 70, cleared: true, cheatCleared: false, rtaCleared: true };
+  const rtaB = { clearMs: 605, cleared: true, cheatCleared: false, rtaCleared: true };
+  const rtaCrossCategory = {
+    clearMs: 1490,
+    cleared: true,
+    cheatCleared: false,
+    rtaCleared: true,
+  };
+  const tied = findSecondTiedPlayers([normalA, normalB, normalOther, rtaA, rtaB, rtaCrossCategory]);
+  assert.equal(tied.has(normalA), true);
+  assert.equal(tied.has(normalB), true);
+  assert.equal(tied.has(normalOther), false);
+  assert.equal(tied.has(rtaA), true);
+  assert.equal(tied.has(rtaB), true);
+  assert.equal(tied.has(rtaCrossCategory), false);
 });
 
 test("writePlayerSnapshot respects EVENT_WRITE_UNTIL and invalid progression", async () => {
@@ -189,7 +211,8 @@ test("board page exposes gold column, updated ranking text, and page security he
   const html = await response.text();
   assert.match(html, /<th scope="col">ゴールド<\/th>/);
   assert.match(html, /クリアタイム → レベル → ゴールド → なまえ/);
-  assert.match(html, /padStart\(3, "0"\)/);
+  assert.match(html, /\.time-ms \{/);
+  assert.match(html, /secondTiedPlayers\.has\(player\)/);
   const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
   assert.ok(script);
   assert.doesNotThrow(() => new Function(script));
