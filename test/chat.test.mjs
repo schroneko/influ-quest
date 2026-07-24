@@ -546,33 +546,6 @@ test("BrowserChatSession serializes concurrent requests for one session", async 
   assert.equal(maxActiveWrites, 1);
 });
 
-test("つよさを みる direct route returns the status text without a model call", async () => {
-  const events = [];
-  const store = createMemoryChatSessionStore({
-    playerId: PLAYER_ID,
-    turns: 0,
-    messages: [],
-    save: createSave({ hostGreeted: true, heroName: "てすと" }),
-  });
-  const response = await handleChat(
-    createChatRequest("つよさを みる"),
-    createChatEnv(),
-    undefined,
-    store,
-    undefined,
-    { observeMcp: (event) => events.push(event) },
-  );
-  assert.equal(response.status, 200);
-  const body = await response.json();
-  assert.match(body.reply, /＊＊ つよさ ＊＊/);
-  assert.deepEqual(
-    events
-      .filter((event) => event.type === "callTool")
-      .map((event) => event.name),
-    ["status"],
-  );
-});
-
 test("fuzzy route uses MCP callTool for mysterious voice", async () => {
   const events = [];
   const store = createMemoryChatSessionStore({
@@ -699,7 +672,7 @@ test("alternate ending states use their dedicated scene images", async () => {
     save: createSave({ heroName: "てすと", hostGreeted: true, virusKingEnded: true }),
   });
   const badResponse = await handleChat(
-    createChatRequest("つよさを みる"),
+    createChatRequest("だいじんと はなす"),
     createChatEnv(),
     undefined,
     badStore,
@@ -720,7 +693,7 @@ test("alternate ending states use their dedicated scene images", async () => {
     }),
   });
   const trueResponse = await handleChat(
-    createChatRequest("つよさを みる"),
+    createChatRequest("ちょまどひめと はなす"),
     createChatEnv(),
     undefined,
     trueStore,

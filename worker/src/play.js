@@ -435,9 +435,6 @@ export function routeDirectCommand(state, rawMessage) {
   ) {
     return [{ name: "talk" }];
   }
-  if (msg === "つよさをみる" || msg === "つよさをみせて") {
-    return [{ name: "status" }];
-  }
   if (
     msg === "まもりのまちへいく" ||
     msg === "まもりのまちへもどる" ||

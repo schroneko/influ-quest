@@ -1011,14 +1011,25 @@ ${logHtml}
     if (state.hostAsking) {
       return ["「はい」か「いいえ」で こたえる", "だいまおうの はなしを もういちど きく"];
     }
+    if (state.cheatCleared) {
+      return ["はじめから やりなおす"];
+    }
     if (!state.hostGreeted && state.location === "venue") {
-      return ["だいじんと はなす", "つよさを みる"];
+      return ["だいじんと はなす"];
     }
     if (state.location === "venue" && state.princessCarried && !state.cleared) {
-      return ["ちょまどひめを だいじんに とどける", "つよさを みる"];
+      return ["ちょまどひめを だいじんに とどける"];
+    }
+    if (state.cleared && state.location === "venue") {
+      const steps = ["ちょまどひめと はなす"];
+      if (!state.natsuKazeDefeated && state.princessTalkCount >= 3) {
+        steps.push("うでだめしを する");
+      }
+      steps.push("はじめから やりなおす");
+      return steps;
     }
     if (state.location === "venue") {
-      return ["まもりのまちへ いく", "つよさを みる"];
+      return ["まもりのまちへ いく"];
     }
     if (state.infected) {
       return ["くすりやで やすんで なおす（まもりのまち）", "かぜぐすりを のむ", "むりを しない"];
@@ -1037,7 +1048,7 @@ ${logHtml}
       state.bossDefeated &&
       !state.princessCarried
     ) {
-      return ["talk で ちょまどひめに こえを かける", "status で じょうたいを みる"];
+      return ["talk で ちょまどひめに こえを かける"];
     }
     if (state.location === "lair") {
       return [
@@ -1046,7 +1057,7 @@ ${logHtml}
         "cast_spell で じゅもんを となえる",
       ];
     }
-    return ["status で じょうたいを みる"];
+    return ["まもりのまちへ いく"];
   }
 
   function shareUrlForState(): string | null {
