@@ -175,6 +175,8 @@ test("play page includes security headers", () => {
   assert.match(response.headers.get("content-security-policy"), /fonts\.googleapis\.com/);
   return response.text().then((html) => {
     assert.match(html, /\.hud\[hidden\],[\s\S]*\.scene\[hidden\][\s\S]*display: none/);
+    assert.match(html, /og:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
+    assert.match(html, /twitter:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
   });
 });
 
@@ -656,8 +658,23 @@ test("cleared heroes can still browse and buy at the shops", async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.match(body.reply, /ぶきや「いらっしゃい/);
+  assert.match(body.image, /weapon-shop/);
   assert.ok(body.suggestions.some((option) => option.includes("を かう")));
   assert.ok(body.suggestions.includes("みせを でる"));
+});
+
+test("armor shop scene uses the dedicated armor shop image", async () => {
+  const store = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ heroName: "てすと", hostGreeted: true, location: "town", gold: 1000 }),
+  });
+  const response = await handleChat(createChatRequest("ぼうぐやを のぞく"), createChatEnv(), undefined, store);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.reply, /ぼうぐや「いらっしゃい/);
+  assert.match(body.image, /armor-shop/);
 });
 
 test("pharmacy scene offers the bed rest command", async () => {
@@ -671,6 +688,45 @@ test("pharmacy scene offers the bed rest command", async () => {
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.ok(body.suggestions.includes("おくの ベッドで やすむ（6G）"));
+  assert.match(body.image, /pharmacy/);
+});
+
+test("alternate ending states use their dedicated scene images", async () => {
+  const badStore = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({ heroName: "てすと", hostGreeted: true, virusKingEnded: true }),
+  });
+  const badResponse = await handleChat(
+    createChatRequest("つよさを みる"),
+    createChatEnv(),
+    undefined,
+    badStore,
+  );
+  assert.equal(badResponse.status, 200);
+  assert.match((await badResponse.json()).image, /bad-ending/);
+
+  const trueStore = createMemoryChatSessionStore({
+    playerId: PLAYER_ID,
+    turns: 0,
+    messages: [],
+    save: createSave({
+      heroName: "てすと",
+      hostGreeted: true,
+      cleared: true,
+      bossDefeated: true,
+      natsuKazeDefeated: true,
+    }),
+  });
+  const trueResponse = await handleChat(
+    createChatRequest("つよさを みる"),
+    createChatEnv(),
+    undefined,
+    trueStore,
+  );
+  assert.equal(trueResponse.status, 200);
+  assert.match((await trueResponse.json()).image, /true-ending/);
 });
 
 test("free input opens after the first minister talk", async () => {

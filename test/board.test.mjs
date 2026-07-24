@@ -176,6 +176,8 @@ test("board page exposes gold column, updated ranking text, and page security he
   const html = await response.text();
   assert.match(html, /<th scope="col">ゴールド<\/th>/);
   assert.match(html, /クリアタイム → レベル → ゴールド → なまえ/);
+  assert.match(html, /og:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
+  assert.match(html, /twitter:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
 });
 
 test("board state api rejects impossible cleared snapshots", async () => {

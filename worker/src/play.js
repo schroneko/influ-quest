@@ -312,6 +312,21 @@ function pickImage(state, reply) {
       return `${base}/enemies/${file}.webp`;
     }
   }
+  if (state.location === "town" && reply.includes("ぶきや「")) {
+    return `${base}/locations/weapon-shop.webp`;
+  }
+  if (state.location === "town" && reply.includes("ぼうぐや「")) {
+    return `${base}/locations/armor-shop.webp`;
+  }
+  if (state.location === "town" && reply.includes("くすりや「")) {
+    return `${base}/locations/pharmacy.webp`;
+  }
+  if (state.virusKingEnded || reply.includes("＊＊ バッドエンド ＊＊")) {
+    return `${base}/scenes/bad-ending.webp`;
+  }
+  if (state.natsuKazeDefeated || reply.includes("＊＊ しんの エンディング ＊＊")) {
+    return `${base}/scenes/true-ending.webp`;
+  }
   if (state.cleared || state.cheatCleared) {
     return `${base}/scenes/ending-celebration.webp`;
   }
@@ -1386,8 +1401,11 @@ const PLAY_PAGE = String.raw`<!doctype html>
 <meta property="og:description" content="インフルだいまおうにさらわれたちょまどひめを助けに行く、ブラウザで遊べるレトロ風テキスト RPG">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://influ-quest.nukoevi.app/play">
-<meta property="og:image" content="https://influ-quest.nukoevi.app/assets/og.png">
+<meta property="og:image" content="https://influ-quest.nukoevi.app/assets/og-title.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://influ-quest.nukoevi.app/assets/og-title.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
