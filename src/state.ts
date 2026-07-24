@@ -23,12 +23,12 @@ export const armorDefenseByName = {
   かんせんたいさくスーツ: 7,
   ロトのよろい: 12,
 } as const;
-export const infectionChanceByArmor = {
-  ふだんぎ: 0.35,
+export const infectionPreventionByArmor = {
+  ふだんぎ: 0,
   ファントムマスク: 0.25,
-  N95マスク: 0.12,
-  かんせんたいさくスーツ: 0.05,
-  ロトのよろい: 0,
+  N95マスク: 0.5,
+  かんせんたいさくスーツ: 0.75,
+  ロトのよろい: 1,
 } as const;
 export const enemyNames = [
   "くしゃみこぞう",

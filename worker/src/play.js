@@ -1710,26 +1710,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
       opacity: 0;
     }
   }
-  .brag-slot button {
-    display: inline-block;
-    font: inherit;
-    font-size: 14px;
-    color: #05060a;
-    background: var(--gold);
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .brag-slot {
-    flex: none;
-    text-align: center;
-    padding: 8px 0 0;
-  }
-  .brag-slot[hidden] {
-    display: none;
-  }
   .commands {
     display: flex;
     flex-wrap: wrap;
@@ -1763,6 +1743,9 @@ const PLAY_PAGE = String.raw`<!doctype html>
   .commands button:disabled {
     color: var(--dim);
     cursor: wait;
+  }
+  .commands button.share {
+    color: var(--gold);
   }
   .commands .hint {
     color: var(--dim);
@@ -1982,7 +1965,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
     </div>
   </div>
   <div class="dqwin logwrap" data-title="― メッセージ ―"><div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions text"></div></div>
-  <div class="brag-slot" id="brag-slot" hidden></div>
   <div class="dqwin commands" id="hints" data-title="― コマンド ―" aria-live="polite" aria-atomic="true"></div>
   <form class="dqwin composer" id="composer" data-title="― にゅうりょく ―" aria-labelledby="input-label" hidden>
     <label class="sr-only" id="input-label" for="input">コマンドを いれる</label>
@@ -2176,22 +2158,6 @@ const PLAY_PAGE = String.raw`<!doctype html>
     inner.addEventListener("animationend", close);
     document.body.appendChild(overlayEl);
   };
-  const shareSlot = document.getElementById("brag-slot");
-  const renderShareSlot = (url) => {
-    shareSlot.replaceChildren();
-    if (!url) {
-      shareSlot.hidden = true;
-      return;
-    }
-    const bragButton = document.createElement("button");
-    bragButton.type = "button";
-    bragButton.textContent = "▶ Xで じまんする";
-    bragButton.addEventListener("click", () => {
-      window.open(url, "_blank", "noopener");
-    });
-    shareSlot.appendChild(bragButton);
-    shareSlot.hidden = false;
-  };
   let audioCtx = null;
   let audioUnlocked = false;
   const silentLoop = new Audio(
@@ -2341,6 +2307,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       input.focus();
     }
   };
+  let currentShareUrl = null;
   const renderSuggestions = (items, options) => {
     const allowInput = !options || options.allowInput !== false;
     hints.replaceChildren();
@@ -2351,6 +2318,15 @@ const PLAY_PAGE = String.raw`<!doctype html>
       button.textContent = item;
       button.disabled = busy || overlayOpen;
       hints.appendChild(button);
+    }
+    if (currentShareUrl) {
+      const shareButton = document.createElement("button");
+      shareButton.type = "button";
+      shareButton.className = "share";
+      shareButton.dataset.share = currentShareUrl;
+      shareButton.textContent = "Xで じまんする";
+      shareButton.disabled = busy || overlayOpen;
+      hints.appendChild(shareButton);
     }
     if (allowInput) {
       const misc = document.createElement("button");
@@ -2438,6 +2414,7 @@ const PLAY_PAGE = String.raw`<!doctype html>
       enemyBar.hidden = true;
       creditsShown = false;
       wasCleared = false;
+      currentShareUrl = null;
       renderSuggestions([], { allowInput: false });
       addMessage("sys", "＊ せかいが まきもどる…… ＊");
     }
@@ -2475,12 +2452,12 @@ const PLAY_PAGE = String.raw`<!doctype html>
         if (data.gameOver) {
           addMessage("gameover", "＊＊ ゲームオーバー ＊＊");
         }
+        const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/);
+        currentShareUrl = data.shareUrl || (shareMatch ? shareMatch[0] : null);
         renderSuggestions(data.suggestions, { allowInput: data.allowInput !== false });
         updateHud(data.hud);
         updateScene(data.image);
         updateEnemy(data.hud && data.hud.enemy);
-        const shareMatch = data.reply.match(/https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/);
-        renderShareSlot(data.shareUrl || (shareMatch ? shareMatch[0] : null));
         const shownReply = shareMatch
           ? data.reply.replace(/\n*Xで せかいに じまんする:\s*\n?https:\/\/x\.com\/intent\/(?:tweet|post)\?text=\S+/, "").trimEnd()
           : data.reply;
@@ -2529,6 +2506,10 @@ const PLAY_PAGE = String.raw`<!doctype html>
     }
     if (target.dataset.input) {
       setComposerOpen(composer.hidden);
+      return;
+    }
+    if (target.dataset.share) {
+      window.open(target.dataset.share, "_blank", "noopener");
       return;
     }
     if (target.dataset.text === "なまえを つける") {

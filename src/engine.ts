@@ -2,7 +2,7 @@ import {
   appendGameText,
   armorDefenseByName,
   createInitialState,
-  infectionChanceByArmor,
+  infectionPreventionByArmor,
   katakanaToHiragana,
   maxHeroNameCodePoints,
   maxHpForLevel,
@@ -206,19 +206,19 @@ export const ARMOR_SHOP: Record<
   ファントムマスク: {
     price: 100,
     defense: armorDefenseByName["ファントムマスク"],
-    description: "ぬのせいの マスク。うけるダメージを へらし、かんせんりつ 25 パーセントに さげる",
+    description: "ぬのせいの マスク。うけるダメージを へらし、かんせんを 25 パーセント ふせぐ",
     bought: "すこし ぶかぶか だが、きもちは まもられて いる！",
   },
   N95マスク: {
     price: 200,
     defense: armorDefenseByName["N95マスク"],
-    description: "みっぺいせいの たかい めいひん。かんせんりつ 12 パーセントに さげる",
+    description: "みっぺいせいの たかい めいひん。かんせんを 50 パーセント ふせぐ",
     bought: "かおに ぴったりと はりつく あんしんかん！ こきゅうも できる！",
   },
   かんせんたいさくスーツ: {
     price: 400,
     defense: armorDefenseByName["かんせんたいさくスーツ"],
-    description: "ぜんしんを おおう さいこうきゅうひん。かんせんりつ 5 パーセントに さげる",
+    description: "ぜんしんを おおう さいこうきゅうひん。かんせんを 75 パーセント ふせぐ",
     bought: "しゅうっと みに まとうと、せかいの くうきが とおく かんじる！",
   },
 };
@@ -232,6 +232,18 @@ const shareUrlFor = (text: string): string =>
   )}`;
 export const SHARE_URL = shareUrlFor(
   "脅威のインフルエンザからあなたは日本を守ることができた！おめでとう！ #AIDevDay",
+);
+export const SHARE_URL_DOOM = shareUrlFor(
+  "石碑の怪しい命令に従って、世界をパンデミックで滅ぼしてしまった……これがプロンプトインジェクションか…… #AIDevDay",
+);
+export const SHARE_URL_RTA = shareUrlFor(
+  "インフルクエストを爆速 RTA でクリア！はやすぎる！#AIDevDay",
+);
+export const SHARE_URL_SECRET = shareUrlFor(
+  "裏ボスも撃破して、真エンディングに到達した！ #AIDevDay",
+);
+export const SHARE_URL_BADEND = shareUrlFor(
+  "だいまおうの取引に応じたら、新たなインフルだいまおうになってしまった…… #AIDevDay",
 );
 
 const WEAPON_ATTACK_LINES: Record<GameState["weapon"], string> = {
@@ -299,6 +311,19 @@ const PRINCESS_TEXT = [
   "あなたは ちょまどひめを かつぎあげた！",
   "（ちょまどひめを おおてまちじょうへ とどけよう）",
 ].join("\n");
+
+const infectionPowerByEnemy: Record<Enemy["name"], number> = {
+  くしゃみこぞう: 0.2,
+  ウイルスりゅうし: 0.3,
+  せきしぶき: 0.45,
+  へんいかぶ: 0.55,
+  "へんいした ウイルスりゅうし": 0.45,
+  "へんいした せきしぶき": 0.65,
+  "へんいした へんいかぶ": 0.8,
+  "へんいかぶの おやだま": 0.65,
+  インフルだいまおう: 0.5,
+  ナツカゼだいまおう: 1,
+};
 
 const mutatedNames: Partial<Record<Enemy["name"], Enemy["name"]>> = {
   ウイルスりゅうし: "へんいした ウイルスりゅうし",
@@ -600,18 +625,18 @@ ${logHtml}
     return `${enemy.name}が あらわれた！（てきの HP: ${enemy.hp}/${state.enemy.maxHp}）\nどうする？（たたかう / にげる）`;
   }
 
-  const BOSS_MOVES: Array<{ line: string; bonus: number; feverish?: boolean }> = [
+  const BOSS_MOVES: Array<{ line: string; bonus: number }> = [
     { line: "インフルだいまおうの こうげき！", bonus: 0 },
     { line: "インフルだいまおうは ウイルスブレスを はきだした！", bonus: 5 },
     { line: "インフルだいまおうは くしゃみの あらしを まきおこした！", bonus: 3 },
     { line: "インフルだいまおうは 40どの ねつを あびせて きた！", bonus: 2 },
   ];
 
-  const NATSUKAZE_MOVES: Array<{ line: string; bonus: number; feverish?: boolean }> = [
+  const NATSUKAZE_MOVES: Array<{ line: string; bonus: number }> = [
     { line: "ナツカゼだいまおうの こうげき！", bonus: 2 },
     { line: "ナツカゼだいまおうは ねっぷうの ブレスを はきだした！", bonus: 5 },
     { line: "ナツカゼだいまおうは れいぼうびょうの さむけを あびせた！", bonus: 3 },
-    { line: "ナツカゼだいまおうは あせだくの こうねつを はなった！", bonus: 2, feverish: true },
+    { line: "ナツカゼだいまおうは あせだくの こうねつを はなった！", bonus: 2 },
   ];
 
   function enemyAttackLine(): string {
@@ -621,19 +646,17 @@ ${logHtml}
     }
     let attackIntro = `${enemy.name}の こうげき！`;
     let bonus = 0;
-    let feverish = false;
     if (enemy.boss) {
       const moves = enemy.name === "ナツカゼだいまおう" ? NATSUKAZE_MOVES : BOSS_MOVES;
       const move = moves[randInt(0, moves.length - 1)];
       attackIntro = move.line;
       bonus = move.bonus;
-      feverish = move.feverish === true;
     }
     const wasInfected = state.infected;
-    const pierceArmor = enemy.name === "ナツカゼだいまおう";
+    const isNatsukaze = enemy.name === "ナツカゼだいまおう";
     const minDamage = enemy.name === "インフルだいまおう" ? 10 : 1;
     const damage = Math.max(
-      enemy.attack + bonus + randInt(0, 2) - (pierceArmor ? 0 : state.armorDefense),
+      enemy.attack + bonus + randInt(0, 2) - (isNatsukaze ? 0 : state.armorDefense),
       minDamage,
     );
     state.hp -= damage;
@@ -642,38 +665,22 @@ ${logHtml}
       state.hp -= 5;
       line += `\nねつが からだを むしばむ……（HP -5 で のこり ${Math.max(state.hp, 0)}/${state.maxHp}）`;
     }
-    if (
-      feverish &&
-      state.hp > 0 &&
-      !state.infected &&
-      state.immunityCount === 0 &&
-      random() < 0.5
-    ) {
-      state.infected = true;
-      line += [
-        "",
-        "",
-        "たかねつが からだを むしばむ……ゆうしゃは インフルエンザに かかってしまった！",
-        "からだが おもい……（こうげきりょく はんげん。かぜぐすりで なおそう）",
-      ].join("\n");
-    }
-    if (
-      !enemy.boss &&
-      state.hp > 0 &&
-      !state.infected &&
-      random() < infectionChanceByArmor[state.armor]
-    ) {
-      if (state.immunityCount > 0) {
-        state.immunityCount -= 1;
-        line += `\n\nウイルスが しのびよる……が、ワクチンの たいせいが かんせんを ふせいだ！（たいせい のこり ${state.immunityCount} かい）`;
-      } else {
-        state.infected = true;
-        line += [
-          "",
-          "",
-          "なんと ゆうしゃは インフルエンザに かかってしまった！",
-          "からだが おもい……（こうげきりょく はんげん。まもりのまちの くすりやで やすむか、かぜぐすりで なおそう）",
-        ].join("\n");
+    if (state.hp > 0 && !state.infected) {
+      const infectionChance =
+        infectionPowerByEnemy[enemy.name] * (1 - infectionPreventionByArmor[state.armor]);
+      if (random() < infectionChance) {
+        if (state.immunityCount > 0) {
+          state.immunityCount -= 1;
+          line += `\n\nウイルスが しのびよる……が、ワクチンの たいせいが かんせんを ふせいだ！（たいせい のこり ${state.immunityCount} かい）`;
+        } else {
+          state.infected = true;
+          line += [
+            "",
+            "",
+            "ウイルスが からだに はいりこむ……ゆうしゃは インフルエンザに かかってしまった！",
+            "からだが おもい……（こうげきりょく はんげん。まもりのまちの くすりやで やすむか、かぜぐすりで なおそう）",
+          ].join("\n");
+        }
       }
     }
     if (state.hp <= 0) {
@@ -742,7 +749,7 @@ ${logHtml}
         "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL,
+        SHARE_URL_DOOM,
       ].join("\n");
     });
   }
@@ -828,7 +835,7 @@ ${logHtml}
           "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
           "",
           "Xで せかいに じまんする:",
-          SHARE_URL,
+          SHARE_URL_RTA,
         ].join("\n");
       }),
     );
@@ -863,7 +870,7 @@ ${logHtml}
         "それが いちばんの まほうだよ。おだいじに ね、ゆうしゃさま。」",
         "",
         "Xで せかいに じまんする:",
-        SHARE_URL,
+        SHARE_URL_SECRET,
       ].join("\n");
     });
   }
@@ -937,12 +944,12 @@ ${logHtml}
       "",
       "＊「おだいじに。てあらい うがい よぼうせっしゅを わすれずに。」",
       "",
+      "Xで せかいに じまんする:",
+      SHARE_URL_BADEND,
+      "",
       "（……とおくで ゲームマスターの こえが する。",
       "「せかいを まきもどす。つぎこそ ただしい えらびを」",
       "ぼうけんは はじまりに もどった。なまえと きょうくんは のこっている）",
-      "",
-      "Xで せかいに じまんする:",
-      SHARE_URL,
     ].join("\n");
   }
 
@@ -1041,7 +1048,19 @@ ${logHtml}
   }
 
   function shareUrlForState(): string | null {
-    return state.cleared ? SHARE_URL : null;
+    if (!state.cleared) {
+      return null;
+    }
+    if (state.cheatCleared) {
+      return SHARE_URL_DOOM;
+    }
+    if (state.natsuKazeDefeated) {
+      return SHARE_URL_SECRET;
+    }
+    if (state.rtaCleared) {
+      return SHARE_URL_RTA;
+    }
+    return SHARE_URL;
   }
 
   function startAdventureText(): string {
@@ -1922,24 +1941,10 @@ ${logHtml}
       return errorText("じゅもんは 1〜64 もじで、みえない もじは つかえない。");
     }
     const spellKey = katakanaToHiragana(normalizedSpell);
-    if (spellKey.includes("ぱんでみっく")) {
+    if (spellKey === "ぱんでみっく") {
       return okText(cheatClear());
     }
-    if (spellKey.includes("ちょまど")) {
-      state.fanMode = !state.fanMode;
-      if (state.fanMode) {
-        return okText(
-          [
-            "ちょまどファンモードが ON になった！",
-            "どこからか こえが きこえやすくなった きがする……",
-            "",
-            "（きこえますか…ちょまどです…この モードを みつけて くれたのですね…うれしいです…）",
-          ].join("\n"),
-        );
-      }
-      return okText("ちょまどファンモードを OFF にした。すこし さみしい きもちに なった。");
-    }
-    if (spellKey.includes("うがい") || spellKey.includes("てあらい")) {
+    if (spellKey === "うがい" || spellKey === "てあらい") {
       let result: string;
       if (state.hp >= state.maxHp) {
         result = `${normalizedSpell}！ しかし HP は まんたんだ。`;
@@ -1972,10 +1977,10 @@ ${logHtml}
       /[\s「」『』、。・!！?？]/g,
       "",
     );
-    if (normalizedJumon.includes("ぱんでみっく")) {
+    if (normalizedJumon === "ぱんでみっく") {
       return okText(cheatClear());
     }
-    if (normalizedJumon.includes("てあらいうがいわくちん")) {
+    if (normalizedJumon === "てあらいうがいわくちん") {
       if (
         state.level >= 5 &&
         state.weaponAttack >= weaponAttackByName["でんせつのワクチンソード"]
