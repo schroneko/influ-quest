@@ -72,6 +72,51 @@ const INCOMING_FIELD_NAMES = new Set(
   ["id", ...RECORD_FIELD_NAMES].filter((field) => field !== "updatedAt"),
 );
 
+export const formatClearTimeParts = (clearMs) => {
+  if (typeof clearMs !== "number" || !Number.isFinite(clearMs) || clearMs <= 0) {
+    return { text: "--", milliseconds: "" };
+  }
+  const totalMilliseconds = Math.floor(clearMs);
+  const minutes = Math.floor(totalMilliseconds / 60000);
+  const remainingMilliseconds = totalMilliseconds % 60000;
+  const seconds = Math.floor(remainingMilliseconds / 1000);
+  const milliseconds = String(remainingMilliseconds % 1000).padStart(3, "0");
+  return { text: `${minutes}ふん ${seconds}びょう`, milliseconds };
+};
+
+export const findSecondTiedPlayers = (players) => {
+  const groups = new Map();
+  for (const player of players) {
+    if (
+      typeof player.clearMs !== "number" ||
+      !Number.isFinite(player.clearMs) ||
+      player.clearMs <= 0
+    ) {
+      continue;
+    }
+    const category = player.cheatCleared
+      ? "cheat"
+      : player.cleared && player.rtaCleared
+        ? "rta"
+        : player.cleared
+          ? "clear"
+          : null;
+    if (category === null) continue;
+    const key = `${category}:${Math.floor(player.clearMs / 1000)}`;
+    const group = groups.get(key) ?? [];
+    group.push(player);
+    groups.set(key, group);
+  }
+  const tiedPlayers = new Set();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const player of group) {
+      tiedPlayers.add(player);
+    }
+  }
+  return tiedPlayers;
+};
+
 class ServiceUnavailableError extends Error {
   constructor(message = "Service temporarily unavailable") {
     super(message);
@@ -867,6 +912,15 @@ const PAGE = String.raw`<!doctype html>
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .cell-time {
+    white-space: nowrap;
+  }
+  .time-ms {
+    margin-left: 0.45em;
+    color: var(--dim);
+    font-size: 0.78em;
+    letter-spacing: 0.04em;
+  }
   .cell-status {
     color: var(--sky);
   }
@@ -1078,13 +1132,8 @@ const PAGE = String.raw`<!doctype html>
     if (player.location === "まもりのまち") return { label: "まちを さんさく", cls: "" };
     return { label: "ぼうけんちゅう", cls: "" };
   };
-  const formatClearTime = (clearMs) => {
-    if (typeof clearMs !== "number" || clearMs <= 0) {
-      return "--";
-    }
-    const totalSeconds = Math.floor(clearMs / 1000);
-    return String(Math.floor(totalSeconds / 60)) + "ふん " + String(totalSeconds % 60) + "びょう";
-  };
+  const formatClearTimeParts = ${formatClearTimeParts.toString()};
+  const findSecondTiedPlayers = ${findSecondTiedPlayers.toString()};
   const renderPlayers = (players) => {
     const fragment = document.createDocumentFragment();
     if (!players.length) {
@@ -1100,12 +1149,14 @@ const PAGE = String.raw`<!doctype html>
       return;
     }
     const nameSeen = new Map();
+    const secondTiedPlayers = findSecondTiedPlayers(players);
     players.forEach((player, index) => {
       const seenCount = (nameSeen.get(player.name) ?? 0) + 1;
       nameSeen.set(player.name, seenCount);
       const displayName = seenCount === 1 ? player.name : player.name + "（" + String(seenCount) + "）";
       const tr = document.createElement("tr");
       const status = statusOf(player);
+      const clearTime = formatClearTimeParts(player.clearMs);
       const values = [
         { label: rowLabels[0], text: String(index + 1) + " い", className: "cell-rank" },
         { label: rowLabels[1], text: displayName, className: "cell-name" },
@@ -1114,13 +1165,24 @@ const PAGE = String.raw`<!doctype html>
         { label: rowLabels[4], text: String(player.gold) + " G" },
         { label: rowLabels[5], text: player.location },
         { label: rowLabels[6], text: status.label, className: "cell-status " + status.cls },
-        { label: rowLabels[7], text: formatClearTime(player.clearMs) },
+        {
+          label: rowLabels[7],
+          text: clearTime.text,
+          className: "cell-time",
+          milliseconds: secondTiedPlayers.has(player) ? clearTime.milliseconds : "",
+        },
       ];
       for (const cell of values) {
         const td = document.createElement("td");
         td.setAttribute("data-label", cell.label);
         td.textContent = cell.text;
         if (cell.className) td.className = cell.className;
+        if (cell.milliseconds) {
+          const milliseconds = document.createElement("span");
+          milliseconds.className = "time-ms";
+          milliseconds.textContent = cell.milliseconds;
+          td.appendChild(milliseconds);
+        }
         tr.appendChild(td);
       }
       fragment.appendChild(tr);
