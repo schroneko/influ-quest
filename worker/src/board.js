@@ -36,6 +36,7 @@ const BODY_LIMIT_BYTES = 2048;
 const CACHE_TTL_MS = 3000;
 export const KV_TTL_SECONDS = 21600;
 const PLAYER_LIST_CACHE_MAX_AGE_SECONDS = 15;
+const MAX_PLAYER_KEYS_PER_SNAPSHOT = 1000;
 const DEFAULT_EVENT_ID = "default";
 const LOCATION_NAMES = new Set(["おおてまちじょう", "まもりのまち", "ウイルスのすみか"]);
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -394,6 +395,9 @@ export async function deletePlayerSnapshot(env, playerId) {
   if (typeof playerId !== "string" || !UUID_V4_PATTERN.test(playerId)) {
     return false;
   }
+  if (!(await reserveAccountKvWrite(env?.BUDGET_DB))) {
+    return false;
+  }
   try {
     const kv = getPlayersKv(env);
     await kv.delete(makePlayerKey(getEventId(env), playerId));
@@ -427,20 +431,17 @@ export async function isHeroNameTaken(env, name, excludedPlayerId = "") {
     const kv = getPlayersKv(env);
     const rows = [];
     const prefix = makeEventPrefix(eventId);
-    let cursor;
-    do {
-      let pageResult;
-      try {
-        pageResult = await kv.list({ prefix, limit: 1000, cursor });
-      } catch {
-        throw new ServiceUnavailableError();
-      }
-      for (const key of pageResult?.keys ?? []) {
-        const record = validateRecordShape(key.metadata, { exactName: true });
-        if (record) rows.push({ key: key.name, name: record.name });
-      }
-      cursor = pageResult?.list_complete ? undefined : pageResult?.cursor;
-    } while (cursor);
+    let pageResult;
+    try {
+      pageResult = await kv.list({ prefix, limit: MAX_PLAYER_KEYS_PER_SNAPSHOT });
+    } catch {
+      throw new ServiceUnavailableError();
+    }
+    for (const key of pageResult?.keys ?? []) {
+      const record = validateRecordShape(key.metadata, { exactName: true });
+      if (record) rows.push({ key: key.name, name: record.name });
+    }
+    if (!pageResult?.list_complete) throw new ServiceUnavailableError();
     names = rows;
     if (typeof caches !== "undefined") {
       await caches.default.put(
@@ -548,22 +549,19 @@ export function createBoard(options = {}) {
       const kv = getPlayersKv(env);
       const prefix = makeEventPrefix(eventId);
       const rows = [];
-      let cursor;
-      do {
-        let pageResult;
-        try {
-          pageResult = await kv.list({ prefix, limit: 1000, cursor });
-        } catch {
-          throw new ServiceUnavailableError();
+      let pageResult;
+      try {
+        pageResult = await kv.list({ prefix, limit: MAX_PLAYER_KEYS_PER_SNAPSHOT });
+      } catch {
+        throw new ServiceUnavailableError();
+      }
+      for (const key of pageResult?.keys ?? []) {
+        const record = validateRecordShape(key.metadata, { exactName: true });
+        if (record) {
+          rows.push({ key: key.name, record });
         }
-        for (const key of pageResult?.keys ?? []) {
-          const record = validateRecordShape(key.metadata, { exactName: true });
-          if (record) {
-            rows.push({ key: key.name, record });
-          }
-        }
-        cursor = pageResult?.list_complete ? undefined : pageResult?.cursor;
-      } while (cursor);
+      }
+      if (!pageResult?.list_complete) throw new ServiceUnavailableError();
       rows.sort(comparePlayers);
       const value = {
         ok: true,

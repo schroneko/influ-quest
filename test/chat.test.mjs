@@ -40,6 +40,11 @@ function createPlayersKv() {
 function createChatEnv(overrides = {}) {
   return {
     ANTHROPIC_API_KEY: "test-key",
+    BUDGET_DB: {
+      prepare() {
+        return { first: async () => ({ reserved_writes: 1 }) };
+      },
+    },
     PLAYERS: createPlayersKv(),
     ...overrides,
   };
