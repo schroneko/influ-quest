@@ -73,6 +73,58 @@ test("writePlayerSnapshot respects EVENT_WRITE_UNTIL and invalid progression", a
   assert.equal(invalid, false);
 });
 
+test("player writes require and consume the global free-tier limiter", async () => {
+  const snapshot = {
+    name: "ゆうしゃ",
+    level: 1,
+    hp: 30,
+    maxHp: 30,
+    gold: 0,
+    location: "おおてまちじょう",
+    cleared: false,
+    cheatCleared: false,
+    princessCarried: false,
+    dragonDefeated: false,
+    infected: false,
+    clearMs: 0,
+  };
+  const timestamp = Date.parse("2026-07-22T02:00:00.000Z");
+  assert.equal(
+    await writePlayerSnapshot(
+      boardEnv(),
+      "89d73a1c-76d6-4ef6-a1e9-7fe7b6aaeb5e",
+      snapshot,
+      timestamp,
+    ),
+    false,
+  );
+  const keys = [];
+  const limitedEnv = boardEnv({
+    WRITE_RATE_LIMITER: {
+      async limit(input) {
+        keys.push(input.key);
+        return { success: true };
+      },
+    },
+    BUDGET_DB: {
+      prepare() {
+        return { first: async () => ({ reserved_writes: 1 }) };
+      },
+    },
+  });
+  assert.equal(
+    await writePlayerSnapshot(
+      limitedEnv,
+      "89d73a1c-76d6-4ef6-a1e9-7fe7b6aaeb5e",
+      snapshot,
+      timestamp,
+    ),
+    true,
+  );
+  assert.deepEqual(keys, ["influ-quest-players"]);
+  assert.equal(limitedEnv.PLAYERS.puts.length, 1);
+});
+
 test("isHeroNameTaken finds another player and excludes the current player", async () => {
   const env = boardEnv();
   await env.PLAYERS.put("event:shared-event:89d73a1c-76d6-4ef6-a1e9-7fe7b6aaeb5e", "{}", {
@@ -176,8 +228,14 @@ test("board page exposes gold column, updated ranking text, and page security he
   const html = await response.text();
   assert.match(html, /<th scope="col">ゴールド<\/th>/);
   assert.match(html, /クリアタイム → レベル → ゴールド → なまえ/);
-  assert.match(html, /og:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
-  assert.match(html, /twitter:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/);
+  assert.match(
+    html,
+    /og:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/,
+  );
+  assert.match(
+    html,
+    /twitter:image" content="https:\/\/influ-quest\.nukoevi\.app\/assets\/og-title\.png"/,
+  );
 });
 
 test("board state api rejects impossible cleared snapshots", async () => {

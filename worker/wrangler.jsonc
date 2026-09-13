@@ -30,6 +30,13 @@
       "id": "1e681ca8ed93495c8de716b9667e3049"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "BUDGET_DB",
+      "database_name": "todo-tasks-db",
+      "database_id": "aa1a89d4-1dbe-443d-bf75-ac93bfcca8bc"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
@@ -82,6 +89,22 @@
       "namespace_id": "2004",
       "simple": {
         "limit": 40,
+        "period": 60
+      }
+    },
+    {
+      "name": "WRITE_RATE_LIMITER",
+      "namespace_id": "2005",
+      "simple": {
+        "limit": 1,
+        "period": 60
+      }
+    },
+    {
+      "name": "DO_REQUEST_RATE_LIMITER",
+      "namespace_id": "2006",
+      "simple": {
+        "limit": 1,
         "period": 60
       }
     }

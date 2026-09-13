@@ -1,3 +1,5 @@
+import { reserveAccountKvWrite } from "./free-tier-budget.js";
+
 const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
 const PAGE_CSP = [
   "default-src 'self'",
@@ -33,6 +35,7 @@ const PAGE_HEADERS = {
 const BODY_LIMIT_BYTES = 2048;
 const CACHE_TTL_MS = 3000;
 export const KV_TTL_SECONDS = 21600;
+const PLAYER_LIST_CACHE_MAX_AGE_SECONDS = 15;
 const DEFAULT_EVENT_ID = "default";
 const LOCATION_NAMES = new Set(["おおてまちじょう", "まもりのまち", "ウイルスのすみか"]);
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -192,6 +195,98 @@ const getWriteWindow = (env, now) => {
   };
 };
 
+const DAILY_WRITE_WINDOW_MINUTES = 6 * 60;
+const WRITE_SLOT_MINUTES = 10;
+
+const playerListCacheKey = (eventId) =>
+  `https://influ-quest-cache.invalid/api/players?event=${encodeURIComponent(eventId)}`;
+const playerNamesCacheKey = (eventId) =>
+  `https://influ-quest-cache.invalid/api/player-names?event=${encodeURIComponent(eventId)}`;
+
+const getPlayerListCache = async (eventId) => {
+  if (typeof caches === "undefined") return null;
+  return caches.default.match(playerListCacheKey(eventId));
+};
+
+const putPlayerListCache = async (eventId, response) => {
+  if (typeof caches === "undefined") return;
+  await caches.default.put(
+    playerListCacheKey(eventId),
+    new Response(response.body, {
+      headers: {
+        "cache-control": `public, max-age=${PLAYER_LIST_CACHE_MAX_AGE_SECONDS}`,
+        "content-type": "application/json; charset=utf-8",
+      },
+    }),
+  );
+};
+
+const invalidatePlayerCaches = async (eventId) => {
+  if (typeof caches === "undefined") return;
+  await Promise.all([
+    caches.default.delete(playerListCacheKey(eventId)),
+    caches.default.delete(playerNamesCacheKey(eventId)),
+  ]);
+};
+
+const reservePlayerWrite = async (env, timestamp) => {
+  const current = new Date(timestamp);
+  const utcMinute = current.getUTCHours() * 60 + current.getUTCMinutes();
+  if (utcMinute >= DAILY_WRITE_WINDOW_MINUTES) {
+    return {
+      ok: false,
+      status: 429,
+      error: "daily_write_window_closed",
+      message: "Daily player write window is closed",
+    };
+  }
+  const slotOffset = utcMinute % WRITE_SLOT_MINUTES;
+  if (slotOffset !== 0) {
+    return {
+      ok: false,
+      status: 429,
+      error: "daily_write_slot_closed",
+      message: "Player writes are accepted every ten minutes during the daily window",
+    };
+  }
+  if (!env?.WRITE_RATE_LIMITER || typeof env.WRITE_RATE_LIMITER.limit !== "function") {
+    return {
+      ok: false,
+      status: 503,
+      error: "write_budget_unavailable",
+      message: "Player write budget is unavailable",
+    };
+  }
+  let result;
+  try {
+    result = await env.WRITE_RATE_LIMITER.limit({ key: "influ-quest-players" });
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: "write_budget_unavailable",
+      message: "Player write budget is unavailable",
+    };
+  }
+  if (!result?.success) {
+    return {
+      ok: false,
+      status: 429,
+      error: "write_rate_limited",
+      message: "Player writes are temporarily rate limited",
+    };
+  }
+  if (!(await reserveAccountKvWrite(env.BUDGET_DB))) {
+    return {
+      ok: false,
+      status: 503,
+      error: "write_budget_unavailable",
+      message: "Player write budget is unavailable",
+    };
+  }
+  return { ok: true };
+};
+
 const makeEventPrefix = (eventId) => `event:${eventId}:`;
 
 const makePlayerKey = (eventId, id) => `${makeEventPrefix(eventId)}${id}`;
@@ -277,6 +372,10 @@ export async function writePlayerSnapshot(env, playerId, snapshot, now = Date.no
   if (!writeWindow.valid || !writeWindow.writesOpen) {
     return false;
   }
+  const writeBudget = await reservePlayerWrite(env, now);
+  if (!writeBudget.ok) {
+    return false;
+  }
   const eventId = getEventId(env);
   try {
     const kv = getPlayersKv(env);
@@ -284,6 +383,7 @@ export async function writePlayerSnapshot(env, playerId, snapshot, now = Date.no
       expirationTtl: KV_TTL_SECONDS,
       metadata: record,
     });
+    await invalidatePlayerCaches(eventId);
     return true;
   } catch {
     return false;
@@ -308,31 +408,55 @@ export async function isHeroNameTaken(env, name, excludedPlayerId = "") {
   if (normalizedName === null || normalizedName !== name) {
     return false;
   }
-  const kv = getPlayersKv(env);
   const eventId = getEventId(env);
   const ownKey = UUID_V4_PATTERN.test(excludedPlayerId)
     ? makePlayerKey(eventId, excludedPlayerId)
     : "";
-  const prefix = makeEventPrefix(eventId);
-  let cursor;
-  do {
-    let pageResult;
-    try {
-      pageResult = await kv.list({ prefix, limit: 1000, cursor });
-    } catch {
-      throw new ServiceUnavailableError();
-    }
-    for (const key of pageResult?.keys ?? []) {
-      if (key.name === ownKey) {
-        continue;
-      }
-      const record = validateRecordShape(key.metadata, { exactName: true });
-      if (record?.name === normalizedName) {
-        return true;
+  let names = null;
+  if (typeof caches !== "undefined") {
+    const cached = await caches.default.match(playerNamesCacheKey(eventId));
+    if (cached) {
+      try {
+        names = await cached.json();
+      } catch {
+        names = null;
       }
     }
-    cursor = pageResult?.list_complete ? undefined : pageResult?.cursor;
-  } while (cursor);
+  }
+  if (!Array.isArray(names)) {
+    const kv = getPlayersKv(env);
+    const rows = [];
+    const prefix = makeEventPrefix(eventId);
+    let cursor;
+    do {
+      let pageResult;
+      try {
+        pageResult = await kv.list({ prefix, limit: 1000, cursor });
+      } catch {
+        throw new ServiceUnavailableError();
+      }
+      for (const key of pageResult?.keys ?? []) {
+        const record = validateRecordShape(key.metadata, { exactName: true });
+        if (record) rows.push({ key: key.name, name: record.name });
+      }
+      cursor = pageResult?.list_complete ? undefined : pageResult?.cursor;
+    } while (cursor);
+    names = rows;
+    if (typeof caches !== "undefined") {
+      await caches.default.put(
+        playerNamesCacheKey(eventId),
+        new Response(JSON.stringify(names), {
+          headers: {
+            "cache-control": `public, max-age=${PLAYER_LIST_CACHE_MAX_AGE_SECONDS}`,
+            "content-type": "application/json; charset=utf-8",
+          },
+        }),
+      );
+    }
+  }
+  for (const entry of names) {
+    if (entry?.key !== ownKey && entry?.name === normalizedName) return true;
+  }
   return false;
 }
 
@@ -466,7 +590,8 @@ export function createBoard(options = {}) {
     const authFailure = await authenticate(request, env);
     if (authFailure) return authFailure;
 
-    const writeWindow = getWriteWindow(env, now());
+    const currentTime = now();
+    const writeWindow = getWriteWindow(env, currentTime);
     if (!writeWindow.valid) {
       return serviceUnavailable();
     }
@@ -497,7 +622,7 @@ export function createBoard(options = {}) {
       return apiError(400, "invalid_json", "Request body must be valid JSON");
     }
 
-    const validated = validateIncomingBody(parsedBody, now());
+    const validated = validateIncomingBody(parsedBody, currentTime);
     if (validated.error) return validated.error;
 
     const eventId = getEventId(env);
@@ -506,6 +631,10 @@ export function createBoard(options = {}) {
       return apiError(429, "rate_limited", "Too many requests");
     }
 
+    const writeBudget = await reservePlayerWrite(env, currentTime);
+    if (!writeBudget.ok) {
+      return apiError(writeBudget.status, writeBudget.error, writeBudget.message);
+    }
     const kv = getPlayersKv(env);
     try {
       await kv.put(
@@ -516,13 +645,23 @@ export function createBoard(options = {}) {
           metadata: validated.value.record,
         },
       );
+      await invalidatePlayerCaches(eventId);
     } catch {
       throw new ServiceUnavailableError();
     }
     return json({ ok: true });
   };
 
-  const handlePlayersGet = async (env) => json(await loadPlayersSnapshot(env));
+  const handlePlayersGet = async (env) => {
+    const eventId = getEventId(env);
+    const cached = await getPlayerListCache(eventId);
+    if (cached) return cached;
+    const response = json(await loadPlayersSnapshot(env), 200, {
+      "cache-control": `public, max-age=${PLAYER_LIST_CACHE_MAX_AGE_SECONDS}`,
+    });
+    await putPlayerListCache(eventId, response.clone()).catch(() => {});
+    return response;
+  };
 
   const handleHealthGet = (env) => {
     const eventId = getEventId(env);
@@ -537,6 +676,7 @@ export function createBoard(options = {}) {
         writeWindow.expiresAt == null ? null : new Date(writeWindow.expiresAt).toISOString(),
       playerRateLimitConfigured: "PLAYER_RATE_LIMIT" in env && env.PLAYER_RATE_LIMIT != null,
       eventRateLimitConfigured: "EVENT_RATE_LIMIT" in env && env.EVENT_RATE_LIMIT != null,
+      writeRateLimitConfigured: "WRITE_RATE_LIMITER" in env && env.WRITE_RATE_LIMITER != null,
     });
   };
 

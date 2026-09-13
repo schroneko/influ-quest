@@ -21,6 +21,9 @@ type Env = {
   EVENT_RATE_LIMIT?: unknown;
   CHAT_RATE_LIMIT?: unknown;
   CHAT_IP_RATE_LIMIT?: unknown;
+  WRITE_RATE_LIMITER?: unknown;
+  DO_REQUEST_RATE_LIMITER?: unknown;
+  BUDGET_DB?: unknown;
 };
 
 type QuestAgentState = {
@@ -29,7 +32,69 @@ type QuestAgentState = {
 };
 
 const SNAPSHOT_WRITE_COOLDOWN_MS = 2000;
+const DAILY_DO_REQUEST_WINDOW_MINUTES = 6 * 60;
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const dailyDoBudgetResponse = (
+  status: number,
+  error: string,
+  message: string,
+  retryAfter?: number,
+) =>
+  new Response(JSON.stringify({ ok: false, error, message }), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      ...(retryAfter == null ? {} : { "retry-after": String(retryAfter) }),
+    },
+  });
+
+async function allowDurableObjectRequest(request: Request, env: Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  const guardedPath =
+    url.pathname === "/api/chat" ||
+    url.pathname === "/mcp" ||
+    url.pathname.startsWith("/mcp/") ||
+    url.pathname === "/sse" ||
+    url.pathname.startsWith("/sse/");
+  if (!guardedPath) return null;
+  const current = new Date();
+  const utcMinute = current.getUTCHours() * 60 + current.getUTCMinutes();
+  if (utcMinute >= DAILY_DO_REQUEST_WINDOW_MINUTES) {
+    return dailyDoBudgetResponse(
+      429,
+      "daily_do_request_window_closed",
+      "Daily Durable Object request window is closed",
+      (24 * 60 - utcMinute) * 60,
+    );
+  }
+  if (!env.DO_REQUEST_RATE_LIMITER || typeof env.DO_REQUEST_RATE_LIMITER.limit !== "function") {
+    return dailyDoBudgetResponse(
+      503,
+      "do_request_budget_unavailable",
+      "Durable Object request budget is unavailable",
+    );
+  }
+  let result: { success?: boolean };
+  try {
+    result = await env.DO_REQUEST_RATE_LIMITER.limit({ key: "influ-quest-durable-objects" });
+  } catch {
+    return dailyDoBudgetResponse(
+      503,
+      "do_request_budget_unavailable",
+      "Durable Object request budget is unavailable",
+    );
+  }
+  if (!result?.success) {
+    return dailyDoBudgetResponse(
+      429,
+      "do_request_rate_limited",
+      "Durable Object requests are temporarily rate limited",
+      60,
+    );
+  }
+  return null;
+}
 
 export class QuestAgent extends McpAgent<Env, QuestAgentState, Record<string, never>> {
   private wiring = createGameServer();
@@ -118,6 +183,8 @@ export { BrowserChatSession };
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
+    const budgetFailure = await allowDurableObjectRequest(request, env);
+    if (budgetFailure) return budgetFailure;
     const url = new URL(request.url);
     if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) {
       return mcpHandler.fetch(request, env, ctx as never);
