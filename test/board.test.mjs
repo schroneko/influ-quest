@@ -108,7 +108,10 @@ test("player writes require and consume the global free-tier limiter", async () 
     },
     BUDGET_DB: {
       prepare() {
-        return { first: async () => ({ reserved_writes: 1 }) };
+        return {
+          run: async () => ({ meta: { changes: 0 } }),
+          first: async () => ({ reserved_writes: 1 }),
+        };
       },
     },
   });

@@ -42,7 +42,10 @@ function createChatEnv(overrides = {}) {
     ANTHROPIC_API_KEY: "test-key",
     BUDGET_DB: {
       prepare() {
-        return { first: async () => ({ reserved_writes: 1 }) };
+        return {
+          run: async () => ({ meta: { changes: 0 } }),
+          first: async () => ({ reserved_writes: 1 }),
+        };
       },
     },
     PLAYERS: createPlayersKv(),
