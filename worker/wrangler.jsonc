@@ -34,7 +34,8 @@
     {
       "binding": "BUDGET_DB",
       "database_name": "todo-tasks-db",
-      "database_id": "aa1a89d4-1dbe-443d-bf75-ac93bfcca8bc"
+      "database_id": "aa1a89d4-1dbe-443d-bf75-ac93bfcca8bc",
+      "migrations_dir": "migrations"
     }
   ],
   "durable_objects": {
